@@ -1,3 +1,4 @@
+<<<<<<< ours
 # Toratail 代码编辑器更新日志
 
 ## [0.2.0] - 2025-09-13 - Preview
@@ -257,3 +258,206 @@ To extend or modify the project, please follow these steps:
 
 ## Feedback
 If you have any questions or suggestions, please submit an issue in the project repository and we will reply and process it as soon as possible.
+||||||| ancestor
+README!
+=======
+# Toratail 代码编辑器
+
+## 项目简介
+Toratail 是一个基于 PyQt6 开发的现代化代码编辑器，专为提高编程效率和提供舒适的开发体验而设计。它结合了简洁的用户界面与强大的功能，适合各种规模的编程项目。
+
+## 项目目的
+本项目旨在创建一个轻量级但功能完备的代码编辑器，提供良好的代码编辑体验，同时保持界面简洁、响应迅速，让开发者能够专注于代码编写。
+
+## 安装指南
+
+### 前提条件
+- Python 3.8 或更高版本
+- pip 包管理器
+
+### 安装步骤
+1. 克隆或下载项目代码到本地
+2. 创建虚拟环境（可选但推荐）
+   ```bash
+   python -m venv .venv
+   ```
+3. 激活虚拟环境
+   - Windows：
+     ```bash
+     toratail\Scripts\activate
+     ```
+   - macOS/Linux：
+     ```bash
+     source toratail/bin/activate
+     ```
+4. 安装所需依赖
+   ```bash
+   pip install PyQt6
+   ```
+5. 运行编辑器
+   ```bash
+   python main.py
+   ```
+
+## 使用指南
+
+### 基本操作
+- **新建文件**：点击顶部菜单栏的 "Files" -> "New" 或使用快捷键 Ctrl+N
+- **打开文件**：点击 "Files" -> "Open" 或使用快捷键 Ctrl+O
+- **保存文件**：点击 "Files" -> "Save" 或使用快捷键 Ctrl+S
+- **保存为**：点击 "Files" -> "Save As" 或使用快捷键 Ctrl+Shift+S
+- **关闭文件**：点击标签页右侧的 "x" 按钮或使用快捷键 Ctrl+W
+
+### 编辑功能
+- **剪切**：Ctrl+X
+- **复制**：Ctrl+C
+- **粘贴**：Ctrl+V
+- **查找**：Ctrl+F
+- **撤销**：Ctrl+Z
+- **重做**：Ctrl+Y
+
+### 设置选项
+- **字体设置**：点击 "Setting" -> "Font" 可以打开字体选择对话框
+- **主题切换**：点击 "Setting" -> "Theme" 可以选择暗色或亮色主题
+
+## 主要功能
+
+1. **多标签页管理**：支持同时打开和编辑多个文件，通过标签页快速切换
+2. **语法高亮**：支持 Python 代码的语法高亮，提高代码可读性
+3. **行号显示**：显示代码行号，方便定位和参考
+4. **智能缩进**：自动处理代码缩进，保持代码整洁
+5. **主题切换**：提供深色和浅色两种主题，适应不同的使用环境和个人偏好
+6. **字体自定义**：支持选择和调整编辑器字体，满足不同用户的需求
+7. **文件操作**：支持新建、打开、保存、另存为等基本文件操作
+8. **起始页**：当所有标签页关闭时，自动显示起始页，提供快速操作入口
+9. **状态栏信息**：显示当前光标位置、文件编码等信息
+10. **响应式设计**：界面元素自动适应窗口大小变化
+
+## 依赖项
+- PyQt6：用于构建图形用户界面
+
+## 配置要求
+- 操作系统：Windows、macOS 或 Linux
+- Python 3.8 或更高版本
+- 建议至少 2GB 内存以确保流畅运行
+
+## 项目结构
+```
+toratail/
+├── main.py         # 主程序文件
+├── README.md       # 项目说明文档
+├── .gitignore      # Git 忽略文件配置
+└── icons/          # 图标资源文件夹
+    └── icon.ico    # 应用程序图标
+```
+
+## 开发说明
+如需对项目进行扩展或修改，请按照以下步骤操作：
+1. 确保已安装所有依赖项
+2. 修改 main.py 文件中的相关代码
+3. 测试更改以确保功能正常
+
+## 问题反馈
+如有任何问题或建议，请在项目仓库中提交 issue，我们将尽快回复和处理。
+
+---
+
+# Toratail Code Editor
+
+## Project Introduction
+Toratail is a modern code editor developed based on PyQt6, designed to improve programming efficiency and provide a comfortable development experience. It combines a clean user interface with powerful features, suitable for programming projects of all sizes.
+
+## Project Purpose
+This project aims to create a lightweight yet fully functional code editor that provides a good code editing experience while maintaining a clean interface and responsive performance, allowing developers to focus on code writing.
+
+## Installation Guide
+
+### Prerequisites
+- Python 3.8 or higher
+- pip package manager
+
+### Installation Steps
+1. Clone or download the project code to your local machine
+2. Create a virtual environment (optional but recommended)
+   ```bash
+   python -m venv toratail
+   ```
+3. Activate the virtual environment
+   - Windows:
+     ```bash
+     toratail\Scripts\activate
+     ```
+   - macOS/Linux:
+     ```bash
+     source toratail/bin/activate
+     ```
+4. Install the required dependencies
+   ```bash
+   pip install PyQt6
+   ```
+5. Run the editor
+   ```bash
+   python main.py
+   ```
+
+## Usage Guide
+
+### Basic Operations
+- **New File**: Click "Files" -> "New" in the top menu bar or use the shortcut Ctrl+N
+- **Open File**: Click "Files" -> "Open" or use the shortcut Ctrl+O
+- **Save File**: Click "Files" -> "Save" or use the shortcut Ctrl+S
+- **Save As**: Click "Files" -> "Save As" or use the shortcut Ctrl+Shift+S
+- **Close File**: Click the "x" button on the right side of the tab or use the shortcut Ctrl+W
+
+### Editing Features
+- **Cut**: Ctrl+X
+- **Copy**: Ctrl+C
+- **Paste**: Ctrl+V
+- **Find**: Ctrl+F
+- **Undo**: Ctrl+Z
+- **Redo**: Ctrl+Y
+
+### Setting Options
+- **Font Setting**: Click "Setting" -> "Font" to open the font selection dialog
+- **Theme Switching**: Click "Setting" -> "Theme" to select dark or light theme
+
+## Key Features
+
+1. **Multi-tab Management**: Supports opening and editing multiple files simultaneously, with quick switching via tabs
+2. **Syntax Highlighting**: Supports Python code syntax highlighting to improve code readability
+3. **Line Number Display**: Shows code line numbers for easy location and reference
+4. **Smart Indentation**: Automatically handles code indentation to keep code clean
+5. **Theme Switching**: Provides dark and light themes to adapt to different usage environments and personal preferences
+6. **Font Customization**: Supports selecting and adjusting editor fonts to meet different user needs
+7. **File Operations**: Supports basic file operations such as new, open, save, save as, etc.
+8. **Start Page**: When all tabs are closed, automatically displays the start page, providing quick operation entry
+9. **Status Bar Information**: Displays current cursor position, file encoding and other information
+10. **Responsive Design**: Interface elements automatically adapt to window size changes
+
+## Dependencies
+- PyQt6: Used to build the graphical user interface
+
+## Configuration Requirements
+- Operating System: Windows, macOS or Linux
+- Python 3.8 or higher
+- At least 2GB of memory is recommended for smooth operation
+
+## Project Structure
+```
+toratail/
+├── main.py         # Main program file
+├── README.md       # Project documentation
+├── .gitignore      # Git ignore file configuration
+└── icons/          # Icon resource folder
+    └── icon.ico    # Application icon
+```
+
+## Development Notes
+To extend or modify the project, please follow these steps:
+1. Ensure all dependencies are installed
+2. Modify the relevant code in the main.py file
+3. Test changes to ensure functionality works properly
+
+## Feedback
+If you have any questions or suggestions, please submit an issue in the project repository and we will reply and process it as soon as possible.
+>>>>>>> theirs
