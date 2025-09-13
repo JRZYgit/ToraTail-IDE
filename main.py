@@ -1,12 +1,19 @@
 import sys
 import os
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QPlainTextEdit, QTextEdit,
-                             QFileDialog, QMessageBox, QVBoxLayout, 
-                             QHBoxLayout, QWidget, QSplitter, QMenuBar, 
-                             QMenu, QStatusBar, QSplashScreen, QTabWidget, QToolBar, 
-                             QInputDialog, QLabel, QPushButton, QFontDialog)
-from PyQt6.QtCore import Qt, QSize, QTimer, QEasingCurve, QPropertyAnimation
-from PyQt6.QtGui import QIcon, QFont, QPainter, QColor, QTextCharFormat, QSyntaxHighlighter, QPixmap, QAction
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QTextEdit, QTabWidget, QVBoxLayout,
+    QWidget, QPushButton, QFileDialog, QMessageBox, QMenuBar, QMenu,
+    QFontDialog, QInputDialog, QSplitter, QLabel, QHBoxLayout,
+    QListWidget, QSplashScreen, QPlainTextEdit, QToolBar
+)
+from PyQt6.QtGui import (
+    QFont, QColor, QSyntaxHighlighter, QTextCharFormat,
+    QTextCursor, QPalette, QPainter, QPen, QImage, QIcon, QPixmap, QAction, QFontMetrics
+)
+from PyQt6.QtCore import (
+    Qt, QSize, QRect, QPoint, QPropertyAnimation,
+    QEasingCurve, pyqtSignal, QTimer
+)
 
 # 启动画面类
 class SplashScreen(QSplashScreen):
@@ -34,87 +41,177 @@ class StartPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
-        self.initUI()
-        
-    def initUI(self):
+        self.init_ui()
+
+    def init_ui(self):
         # 设置布局
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(50, 50, 50, 50)
-        
+        layout.setSpacing(30)
+
         # 添加标题
-        title_label = QLabel("Toratail")
-        title_font = QFont("Segoe UI", 36, QFont.Weight.Bold)
-        title_label.setFont(title_font)
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("color: #3498db;")
-        layout.addWidget(title_label)
-        
+        title = QLabel("欢迎使用 Toratail")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 28px; font-weight: bold; color: #3498db;")
+        layout.addWidget(title)
+
         # 添加副标题
-        subtitle_label = QLabel("轻量级的代码编辑工具")
-        subtitle_font = QFont("Segoe UI", 14, QFont.Weight.Light)
-        subtitle_label.setFont(subtitle_font)
-        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle_label.setStyleSheet("color: #7f8c8d;")
-        layout.addWidget(subtitle_label)
-        
-        # 添加按钮区域
-        button_layout = QVBoxLayout()
-        button_layout.setSpacing(15)
+        subtitle = QLabel("一个简洁、轻量级的代码编辑器")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setStyleSheet("font-size: 16px; color: #7f8c8d;")
+        layout.addWidget(subtitle)
+
+        # 添加按钮容器
+        button_layout = QHBoxLayout()
         button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # 创建带样式的按钮函数
-        def createStyledButton(text, callback):
-            button = QPushButton(text)
-            button.setMinimumSize(200, 40)
-            button.setMaximumWidth(200)
-            button.setStyleSheet("""
-                QPushButton {
-                    background-color: #3498db;
+        button_layout.setSpacing(15)  # 增加按钮间距
+
+        # 创建按钮并减小尺寸
+        new_file_btn = QPushButton("新建文件")
+        new_file_btn.setMinimumSize(100, 32)  # 减小按钮尺寸
+        new_file_btn.setMaximumSize(140, 32)
+        new_file_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 16px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+        new_file_btn.clicked.connect(self.parent.new_file)
+        button_layout.addWidget(new_file_btn)
+
+        open_file_btn = QPushButton("打开文件")
+        open_file_btn.setMinimumSize(100, 32)  # 减小按钮尺寸
+        open_file_btn.setMaximumSize(140, 32)
+        open_file_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 16px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+        open_file_btn.clicked.connect(self.parent.open_file)
+        button_layout.addWidget(open_file_btn)
+
+        layout.addLayout(button_layout)
+
+        # 添加最近文件部分
+        recent_label = QLabel("最近文件")
+        recent_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        recent_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #555555;")
+        layout.addWidget(recent_label)
+
+        # 最近文件列表
+        self.recent_files_list = QListWidget()
+        self.recent_files_list.setMaximumHeight(100)
+        self.recent_files_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                padding: 5px;
+            }
+            QListWidget::item {
+                padding: 5px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QListWidget::item:hover {
+                background-color: #f5f5f5;
+            }
+        """)
+        layout.addWidget(self.recent_files_list)
+
+        # 加载最近文件
+        self.load_recent_files()
+
+    def load_recent_files(self):
+        # 加载最近文件列表
+        self.recent_files_list.clear()
+        try:
+            # 从配置文件或其他地方加载最近文件列表
+            # 这里简单模拟一些最近文件
+            recent_files = []
+            for file_name in recent_files:
+                item = QListWidgetItem(file_name)
+                self.recent_files_list.addItem(item)
+        except Exception as e:
+            print(f"加载最近文件失败: {e}")
+    
+    def add_recent_file(self, file_path):
+        # 将文件添加到最近文件列表
+        try:
+            # 检查文件是否已存在
+            for i in range(self.recent_files_list.count()):
+                if self.recent_files_list.item(i).text() == file_path:
+                    # 如果已存在，移到顶部
+                    item = self.recent_files_list.takeItem(i)
+                    self.recent_files_list.insertItem(0, item)
+                    return
+            
+            # 添加新文件到列表顶部
+            self.recent_files_list.insertItem(0, file_path)
+            
+            # 限制列表长度
+            max_recent = 5
+            while self.recent_files_list.count() > max_recent:
+                self.recent_files_list.takeItem(self.recent_files_list.count() - 1)
+        except Exception as e:
+            print(f"添加最近文件失败: {e}")
+    
+    # 根据主题更新样式
+    def updateTheme(self, is_dark_theme):
+        if is_dark_theme:
+            self.setStyleSheet("background-color: #252526;")  # 设置与主题相近的背景色
+            self.recent_files_list.setStyleSheet("""
+                QListWidget {
+                    background-color: #3c3c3c;
+                    border: 1px solid #464647;
+                    border-radius: 4px;
+                    padding: 5px;
+                    color: #cccccc;
+                }
+                QListWidget::item {
+                    padding: 5px;
+                    border-bottom: 1px solid #464647;
+                    color: #cccccc;
+                }
+                QListWidget::item:hover {
+                    background-color: #0e639c;
                     color: white;
-                    border: none;
-                    border-radius: 6px;
-                    font-family: 'Segoe UI';
-                    font-size: 14px;
-                    padding: 10px 20px;
-                }
-                QPushButton:hover {
-                    background-color: #2980b9;
-                }
-                QPushButton:pressed {
-                    background-color: #1f618d;
                 }
             """)
-            button.clicked.connect(callback)
-            return button
-        
-        # 新建文件按钮
-        new_button = createStyledButton("新建文件", self.new_file)
-        button_layout.addWidget(new_button)
-        
-        # 打开文件按钮
-        open_button = createStyledButton("打开文件", self.open_file)
-        button_layout.addWidget(open_button)
-        
-        layout.addLayout(button_layout, 1)
-        
-        # 添加最近文件区域
-        recent_label = QLabel("最近文件")
-        recent_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Medium))
-        recent_label.setStyleSheet("color: #7f8c8d;")
-        recent_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        layout.addWidget(recent_label, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
-        
-        # 设置背景颜色和渐变效果
-        self.setStyleSheet("background-color: #f8f9fa;")
-    
-    def new_file(self):
-        if self.parent:
-            self.parent.new_file()
-    
-    def open_file(self):
-        if self.parent:
-            self.parent.open_file()
+        else:
+            self.setStyleSheet("background-color: #f8f9fa;")  # 设置与主题相近的背景色
+            self.recent_files_list.setStyleSheet("""
+                QListWidget {
+                    background-color: white;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 4px;
+                    padding: 5px;
+                    color: #333333;
+                }
+                QListWidget::item {
+                    padding: 5px;
+                    border-bottom: 1px solid #f0f0f0;
+                    color: #333333;
+                }
+                QListWidget::item:hover {
+                    background-color: #e8f4fd;
+                    color: #3498db;
+                }
+            """)
 
 # 行号显示区域
 class LineNumberArea(QWidget):
@@ -139,6 +236,11 @@ class BasicSyntaxHighlighter(QSyntaxHighlighter):
             "for", "while", "in", "return", "break", "continue",
             "try", "except", "finally", "with", "as", "pass", "raise"
         ]
+        
+    def updateTheme(self, is_dark_theme):
+        # 更新主题并重新设置格式
+        self.is_dark_theme = is_dark_theme
+        self.setupFormats()
         
     def setupFormats(self):
         # 根据主题设置不同的颜色
@@ -258,7 +360,14 @@ class CodeEditor(QPlainTextEdit):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
-    def updateTheme(self):
+    def updateTheme(self, is_dark_theme=None):
+        # 如果提供了主题参数，更新实例的主题属性
+        if is_dark_theme is not None:
+            self.is_dark_theme = is_dark_theme
+        
+        # 更新语法高亮器的主题
+        self.highlighter.updateTheme(self.is_dark_theme)
+        
         if self.is_dark_theme:
             self.setStyleSheet("""
                 QPlainTextEdit {
@@ -379,41 +488,42 @@ class CodeEditor(QPlainTextEdit):
 
     def lineNumberAreaPaintEvent(self, event):
         painter = QPainter(self.lineNumberArea)
-        
-        # 根据主题设置行号区域背景色
-        if self.is_dark_theme:
-            painter.fillRect(event.rect(), QColor(37, 37, 38))
-            painter.setPen(QColor(128, 128, 128))
-        else:
-            painter.fillRect(event.rect(), QColor(245, 245, 245))
-            painter.setPen(QColor(100, 100, 100))
-        
+        painter.fillRect(event.rect(), QColor(240, 240, 240) if not self.is_dark_theme else QColor(43, 43, 43))
+
         block = self.firstVisibleBlock()
-        block_number = block.blockNumber()
-        top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
-        bottom = top + self.blockBoundingRect(block).height()
-        
+        blockNumber = block.blockNumber()
+        top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
+        bottom = top + int(self.blockBoundingRect(block).height())
+
+        # 绘制行号，改进对齐和间距
         font = painter.font()
-        font.setFamily("JetBrains Mono" if self.font().family() == "JetBrains Mono" else "Consolas")
-        font.setPointSize(self.font().pointSize())
+        font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
         painter.setFont(font)
-        
+
+        # 根据字体计算合适的行高
+        font_metrics = QFontMetrics(font)
+        line_height = font_metrics.height()
+
+        # 计算最大行号位数以确定合适的右对齐间距
+        max_lines = self.blockCount()
+        max_digits = len(str(max_lines))
+
+        # 设置行号文本颜色
+        painter.setPen(QColor(120, 120, 120) if not self.is_dark_theme else QColor(180, 180, 180))
+
         while block.isValid() and (top <= event.rect().bottom()):
             if block.isVisible() and (bottom >= event.rect().top()):
-                number = str(block_number + 1)
-                painter.drawText(
-                    0, 
-                    int(top), 
-                    self.lineNumberArea.width() - 8,  # 右边留出一些空间
-                    self.fontMetrics().height(),
-                    Qt.AlignmentFlag.AlignRight, 
-                    number
-                )
-            
+                # 格式化行号，使其右对齐
+                number = str(blockNumber + 1)
+                # 添加适当的左填充以确保对齐
+                formatted_number = number.rjust(max_digits, ' ')
+                # 绘制行号，增加右侧间距
+                painter.drawText(-5, top, self.lineNumberArea.width() - 10, line_height, Qt.AlignmentFlag.AlignRight, formatted_number)
+
             block = block.next()
             top = bottom
-            bottom = top + self.blockBoundingRect(block).height()
-            block_number += 1
+            bottom = top + int(self.blockBoundingRect(block).height())
+            blockNumber += 1
 
     def highlightCurrentLine(self):
         extra_selections = []
@@ -477,122 +587,96 @@ class CodeEditorWindow(QMainWindow):
         self.statusBar().showMessage("就绪")
 
     def updateGlobalTheme(self):
-        # 设置应用程序的全局样式
+        # 更新应用程序全局样式
         if self.is_dark_theme:
-            app_style = """
+            self.setStyleSheet("""
                 QMainWindow {
-                    background-color: #252526;
-                    color: #d4d4d4;
+                    background-color: #1e1e1e;
+                    color: #cccccc;
                 }
                 QMenuBar {
-                    background-color: #252526;
-                    color: #d4d4d4;
-                    padding: 5px 0;
+                    background-color: #2d2d30;
+                    color: #cccccc;
+                    padding: 5px;
                 }
                 QMenuBar::item {
-                    padding: 5px 10px;
-                    color: #d4d4d4;
                     background-color: transparent;
+                    color: #cccccc;
+                    padding: 5px 10px;
                 }
-                QMenuBar::item:selected {
-                    background-color: #0e639c;
+                QMenuBar::item:hover {
+                    background-color: #3e3e42;
                     color: white;
                 }
                 QMenu {
                     background-color: #2d2d30;
-                    color: #d4d4d4;
+                    color: #cccccc;
                     border: 1px solid #464647;
-                    padding: 2px;
                 }
                 QMenu::item {
-                    padding: 5px 20px 5px 25px;
                     background-color: transparent;
+                    color: #cccccc;
+                    padding: 5px 20px;
                 }
-                QMenu::item:selected {
+                QMenu::item:hover {
                     background-color: #0e639c;
                     color: white;
                 }
                 QStatusBar {
-                    background-color: #252526;
+                    background-color: #2d2d30;
                     color: #cccccc;
-                    border-top: 1px solid #3e3e42;
+                    border-top: 1px solid #464647;
+                    padding: 5px;
                 }
-            """
+            """)
         else:
-            app_style = """
+            self.setStyleSheet("""
                 QMainWindow {
-                    background-color: #f0f0f0;
+                    background-color: white;
                     color: #333333;
                 }
                 QMenuBar {
-                    background-color: #f0f0f0;
+                    background-color: white;
                     color: #333333;
-                    padding: 5px 0;
+                    padding: 5px;
                     border-bottom: 1px solid #e0e0e0;
                 }
                 QMenuBar::item {
-                    padding: 5px 10px;
-                    color: #333333;
                     background-color: transparent;
+                    color: #333333;
+                    padding: 5px 10px;
                 }
-                QMenuBar::item:selected {
-                    background-color: #3498db;
-                    color: white;
+                QMenuBar::item:hover {
+                    background-color: #e0e0e0;
+                    color: #333333;
                 }
                 QMenu {
                     background-color: white;
                     color: #333333;
                     border: 1px solid #e0e0e0;
-                    padding: 2px;
                 }
                 QMenu::item {
-                    padding: 5px 20px 5px 25px;
                     background-color: transparent;
+                    color: #333333;
+                    padding: 5px 20px;
                 }
-                QMenu::item:selected {
-                    background-color: #3498db;
-                    color: white;
+                QMenu::item:hover {
+                    background-color: #e8f4fd;
+                    color: #3498db;
                 }
                 QStatusBar {
-                    background-color: #f0f0f0;
-                    color: #555555;
+                    background-color: white;
+                    color: #333333;
                     border-top: 1px solid #e0e0e0;
+                    padding: 5px;
                 }
-            """
-        
-        self.setStyleSheet(app_style)
-        
-        # 更新标签页样式
-        self.updateTabWidgetStyle()
-        
-        # 更新所有编辑器的主题
-        for i in range(self.tab_widget.count()):
-            widget = self.tab_widget.widget(i)
-            if isinstance(widget, CodeEditor):
-                widget.is_dark_theme = self.is_dark_theme
-                widget.updateTheme()
-            elif isinstance(widget, StartPage):
-                # 更新起始页主题
-                if self.is_dark_theme:
-                    widget.setStyleSheet("background-color: #252526;")
-                    for child in widget.findChildren(QLabel):
-                        if child.text() == "Toratail":
-                            child.setStyleSheet("color: #3498db;")
-                        else:
-                            child.setStyleSheet("color: #bbbbbb;")
-                else:
-                    widget.setStyleSheet("background-color: #f8f9fa;")
-                    for child in widget.findChildren(QLabel):
-                        if child.text() == "Toratail":
-                            child.setStyleSheet("color: #3498db;")
-                        else:
-                            child.setStyleSheet("color: #7f8c8d;")
+            """)
 
-    def updateTabWidgetStyle(self):
+        # 更新标签页样式
         if self.is_dark_theme:
             self.tab_widget.setStyleSheet("""
                 QTabWidget::pane {
-                    border: 1px solid #3e3e42;
+                    border: 1px solid #464647;
                     background-color: #1e1e1e;
                     top: -1px;
                     margin: 0;
@@ -670,291 +754,71 @@ class CodeEditorWindow(QMainWindow):
                 }
             """)
 
-    def create_menus(self):
-        # 文件菜单
-        file_menu = self.menuBar().addMenu("文件")
-        
-        new_action = QAction("新建", self)
-        new_action.setShortcut("Ctrl+N")
-        new_action.triggered.connect(self.new_file)
-        file_menu.addAction(new_action)
-        
-        open_action = QAction("打开", self)
-        open_action.setShortcut("Ctrl+O")
-        open_action.triggered.connect(self.open_file)
-        file_menu.addAction(open_action)
-        
-        save_action = QAction("保存", self)
-        save_action.setShortcut("Ctrl+S")
-        save_action.triggered.connect(self.save_file)
-        file_menu.addAction(save_action)
-        
-        save_as_action = QAction("另存为", self)
-        save_as_action.setShortcut("Ctrl+Shift+S")
-        save_as_action.triggered.connect(self.save_file_as)
-        file_menu.addAction(save_as_action)
-        
-        file_menu.addSeparator()
-        
-        exit_action = QAction("退出", self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        
-        # 编辑菜单
-        edit_menu = self.menuBar().addMenu("编辑")
-        
-        cut_action = QAction("剪切", self)
-        cut_action.setShortcut("Ctrl+X")
-        cut_action.triggered.connect(self.cut)
-        edit_menu.addAction(cut_action)
-        
-        copy_action = QAction("复制", self)
-        copy_action.setShortcut("Ctrl+C")
-        copy_action.triggered.connect(self.copy)
-        edit_menu.addAction(copy_action)
-        
-        paste_action = QAction("粘贴", self)
-        paste_action.setShortcut("Ctrl+V")
-        paste_action.triggered.connect(self.paste)
-        edit_menu.addAction(paste_action)
-        
-        edit_menu.addSeparator()
-        
-        find_action = QAction("查找", self)
-        find_action.setShortcut("Ctrl+F")
-        find_action.triggered.connect(self.find_text)
-        edit_menu.addAction(find_action)
-        
-        # 设置菜单
-        settings_menu = self.menuBar().addMenu("设置")
-        
-        font_action = QAction("字体设置", self)
-        font_action.triggered.connect(self.change_font)
-        settings_menu.addAction(font_action)
-        
-        # 主题切换菜单
-        theme_menu = settings_menu.addMenu("主题")
-        
-        light_theme_action = QAction("浅色主题", self)
-        light_theme_action.setCheckable(True)
-        light_theme_action.setChecked(not self.is_dark_theme)
-        light_theme_action.triggered.connect(self.switch_to_light_theme)
-        theme_menu.addAction(light_theme_action)
-        
-        dark_theme_action = QAction("深色主题", self)
-        dark_theme_action.setCheckable(True)
-        dark_theme_action.setChecked(self.is_dark_theme)
-        dark_theme_action.triggered.connect(self.switch_to_dark_theme)
-        theme_menu.addAction(dark_theme_action)
-
-    def create_toolbar(self):
-        toolbar = QToolBar("工具栏", self)
-        self.addToolBar(toolbar)
-        
-        # 设置工具栏样式
-        if self.is_dark_theme:
-            toolbar.setStyleSheet("""
-                QToolBar {
-                    background-color: #2d2d30;
-                    border: none;
-                    spacing: 10px;
-                    padding: 5px;
-                }
-                QToolButton {
-                    color: #cccccc;
-                    background-color: transparent;
-                    border-radius: 4px;
-                    padding: 4px 8px;
-                    font-family: 'Segoe UI';
-                    font-size: 12px;
-                }
-                QToolButton:hover {
-                    background-color: #3e3e42;
-                    color: white;
-                }
-                QToolButton:pressed {
-                    background-color: #0e639c;
-                    color: white;
-                }
-            """)
-        else:
-            toolbar.setStyleSheet("""
-                QToolBar {
-                    background-color: white;
-                    border: 1px solid #e0e0e0;
-                    spacing: 10px;
-                    padding: 5px;
-                }
-                QToolButton {
-                    color: #555555;
-                    background-color: transparent;
-                    border-radius: 4px;
-                    padding: 4px 8px;
-                    font-family: 'Segoe UI';
-                    font-size: 12px;
-                }
-                QToolButton:hover {
-                    background-color: #e0e0e0;
-                    color: #333333;
-                }
-                QToolButton:pressed {
-                    background-color: #3498db;
-                    color: white;
-                }
-            """)
-        
-        # 创建工具栏按钮
-        new_action = QAction("新建", self)
-        new_action.triggered.connect(self.new_file)
-        toolbar.addAction(new_action)
-        
-        open_action = QAction("打开", self)
-        open_action.triggered.connect(self.open_file)
-        toolbar.addAction(open_action)
-        
-        save_action = QAction("保存", self)
-        save_action.triggered.connect(self.save_file)
-        toolbar.addAction(save_action)
-        
-        toolbar.addSeparator()
-        
-        cut_action = QAction("剪切", self)
-        cut_action.triggered.connect(self.cut)
-        toolbar.addAction(cut_action)
-        
-        copy_action = QAction("复制", self)
-        copy_action.triggered.connect(self.copy)
-        toolbar.addAction(copy_action)
-        
-        paste_action = QAction("粘贴", self)
-        paste_action.triggered.connect(self.paste)
-        toolbar.addAction(paste_action)
-
-    def new_file(self):
-        # 如果当前是起始页，则移除起始页
-        if self.tab_widget.count() == 1 and isinstance(self.tab_widget.widget(0), StartPage):
-            self.tab_widget.removeTab(0)
-        
-        editor = CodeEditor(is_dark_theme=self.is_dark_theme)
-        editor.setFont(self.current_font)  # 使用当前设置的字体
-        editor.textChanged.connect(self.on_text_changed)
-        
-        # 添加标签页动画
-        index = self.tab_widget.addTab(editor, "未命名")
-        self.tab_widget.setCurrentIndex(index)
-        
-        # 为新标签添加简单动画效果
-        self.animateTab(index)
-
-    def animateTab(self, index):
-        # 简单的标签动画效果
-        tab_bar = self.tab_widget.tabBar()
-        rect = tab_bar.tabRect(index)
-        animation = QPropertyAnimation(tab_bar, b"geometry")
-        animation.setDuration(200)
-        animation.setEasingCurve(QEasingCurve.Type.OutQuad)
-        animation.setStartValue(rect)
-        animation.setEndValue(rect)
-        animation.start()
-
-    def open_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "打开文件", "", "所有文件 (*);;Python 文件 (*.py);;文本文件 (*.txt)"
-        )
-        
-        if file_path:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    content = file.read()
-                
-                # 检查是否已有相同文件的标签页
-                for i in range(self.tab_widget.count()):
-                    editor = self.tab_widget.widget(i)
-                    if hasattr(editor, 'file_path') and editor.file_path == file_path:
-                        self.tab_widget.setCurrentIndex(i)
-                        return
-                
-                # 如果当前是起始页，则移除起始页
-                if self.tab_widget.count() == 1 and isinstance(self.tab_widget.widget(0), StartPage):
-                    self.tab_widget.removeTab(0)
-                
-                # 创建新标签页
-                editor = CodeEditor(is_dark_theme=self.is_dark_theme)
-                editor.setFont(self.current_font)  # 使用当前设置的字体
-                editor.setPlainText(content)
-                editor.file_path = file_path
-                editor.textChanged.connect(self.on_text_changed)
-                
-                # 获取文件名作为标签
-                file_name = os.path.basename(file_path)
-                index = self.tab_widget.addTab(editor, file_name)
-                self.tab_widget.setCurrentIndex(index)
-                
-                # 添加标签动画
-                self.animateTab(index)
-                
-                self.statusBar().showMessage(f"已打开文件: {file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"无法打开文件: {str(e)}")
-
-    def save_file(self):
-        editor = self.get_current_editor()
-        if editor and not isinstance(editor, StartPage):
-            if editor.file_path:
-                try:
-                    with open(editor.file_path, 'w', encoding='utf-8') as file:
-                        file.write(editor.toPlainText())
-                    editor.document().setModified(False)
-                    self.statusBar().showMessage(f"已保存文件: {editor.file_path}")
-                    
-                    # 更新标签文本（移除星号）
-                    index = self.tab_widget.indexOf(editor)
-                    file_name = os.path.basename(editor.file_path)
-                    self.tab_widget.setTabText(index, file_name)
-                except Exception as e:
-                    QMessageBox.critical(self, "错误", f"无法保存文件: {str(e)}")
+        # 更新工具栏样式
+        toolbar = self.findChild(QToolBar)
+        if toolbar:
+            if self.is_dark_theme:
+                toolbar.setStyleSheet("""
+                    QToolBar {
+                        background-color: #2d2d30;
+                        border: none;
+                        spacing: 10px;
+                        padding: 5px;
+                    }
+                    QToolButton {
+                        color: #cccccc;
+                        background-color: transparent;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        font-family: 'Segoe UI';
+                        font-size: 12px;
+                    }
+                    QToolButton:hover {
+                        background-color: #3e3e42;
+                        color: white;
+                    }
+                    QToolButton:pressed {
+                        background-color: #0e639c;
+                        color: white;
+                    }
+                """)
             else:
-                self.save_file_as()
+                toolbar.setStyleSheet("""
+                    QToolBar {
+                        background-color: white;
+                        border: 1px solid #e0e0e0;
+                        spacing: 10px;
+                        padding: 5px;
+                    }
+                    QToolButton {
+                        color: #555555;
+                        background-color: transparent;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        font-family: 'Segoe UI';
+                        font-size: 12px;
+                    }
+                    QToolButton:hover {
+                        background-color: #e0e0e0;
+                        color: #333333;
+                    }
+                    QToolButton:pressed {
+                        background-color: #3498db;
+                        color: white;
+                    }
+                """)
 
-    def save_file_as(self):
-        editor = self.get_current_editor()
-        if editor and not isinstance(editor, StartPage):
-            file_path, _ = QFileDialog.getSaveFileName(
-                self, "另存为", "", "所有文件 (*);;Python 文件 (*.py);;文本文件 (*.txt)"
-            )
-            
-            if file_path:
-                editor.file_path = file_path
-                self.save_file()
-                
-                # 更新标签文本
-                index = self.tab_widget.indexOf(editor)
-                file_name = os.path.basename(file_path)
-                self.tab_widget.setTabText(index, file_name)
-
-    def close_tab(self, index):
-        editor = self.tab_widget.widget(index)
-        
-        # 检查是否需要保存
-        if hasattr(editor, 'document') and editor.document().isModified():
-            reply = QMessageBox.question(
-                self, "保存", "文件已修改，是否保存？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
-            )
-            
-            if reply == QMessageBox.StandardButton.Cancel:
-                return
-            if reply == QMessageBox.StandardButton.Yes:
-                self.save_file()
-        
-        self.tab_widget.removeTab(index)
-        
-        # 如果没有标签页了，显示起始页
-        if self.tab_widget.count() == 0:
-            self.show_start_page()
+        # 更新所有编辑器的主题
+        for i in range(self.tab_widget.count()):
+            widget = self.tab_widget.widget(i)
+            if isinstance(widget, CodeEditor):
+                widget.updateTheme(self.is_dark_theme)
+            elif isinstance(widget, StartPage):
+                widget.updateTheme(self.is_dark_theme)  # 更新起始页主题
 
     def show_start_page(self):
         start_page = StartPage(self)
+        start_page.updateTheme(self.is_dark_theme)  # 初始化时应用当前主题
         self.tab_widget.addTab(start_page, "起始页")
         self.tab_widget.setCurrentIndex(0)
 
@@ -986,6 +850,27 @@ class CodeEditorWindow(QMainWindow):
         editor = self.get_current_editor()
         if editor and not isinstance(editor, StartPage):
             editor.cut()
+
+    def close_tab(self, index):
+        editor = self.tab_widget.widget(index)
+        
+        # 检查是否需要保存
+        if hasattr(editor, 'document') and editor.document().isModified():
+            reply = QMessageBox.question(
+                self, "保存", "文件已修改，是否保存？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
+            )
+            
+            if reply == QMessageBox.StandardButton.Cancel:
+                return
+            if reply == QMessageBox.StandardButton.Yes:
+                self.save_file()
+        
+        self.tab_widget.removeTab(index)
+        
+        # 如果没有标签页了，显示起始页
+        if self.tab_widget.count() == 0:
+            self.show_start_page()
 
     def copy(self):
         editor = self.get_current_editor()
@@ -1025,6 +910,88 @@ class CodeEditorWindow(QMainWindow):
                     editor.setFont(font)
             self.statusBar().showMessage(f"已设置字体: {font.family()}, 大小: {font.pointSize()}")
 
+    def updateTabWidgetStyle(self):
+        if self.is_dark_theme:
+            self.tab_widget.setStyleSheet("""
+                QTabWidget::pane {
+                    border: 1px solid #464647;
+                    background-color: #1e1e1e;
+                    top: -1px;
+                    margin: 0;
+                }
+                QTabBar::tab {
+                    background-color: #2d2d30;
+                    color: #cccccc;
+                    padding: 8px 16px;
+                    margin-right: 1px;
+                    border-bottom: 2px solid transparent;
+                    font-family: 'Segoe UI';
+                    font-size: 12px;
+                }
+                QTabBar::tab:hover {
+                    background-color: #3e3e42;
+                    color: white;
+                }
+                QTabBar::tab:selected {
+                    background-color: #1e1e1e;
+                    color: white;
+                    border-bottom: 2px solid #0e639c;
+                    margin-bottom: 0;
+                }
+                QTabBar::close-button {
+                    image: url(icons/close.png);
+                    subcontrol-position: right;
+                    subcontrol-origin: padding;
+                    width: 14px;
+                    height: 14px;
+                    margin-left: 5px;
+                }
+                QTabBar::close-button:hover {
+                    background-color: #ff6b6b;
+                    border-radius: 3px;
+                }
+            """)
+        else:
+            self.tab_widget.setStyleSheet("""
+                QTabWidget::pane {
+                    border: 1px solid #e0e0e0;
+                    background-color: white;
+                    top: -1px;
+                    margin: 0;
+                }
+                QTabBar::tab {
+                    background-color: #f0f0f0;
+                    color: #555555;
+                    padding: 8px 16px;
+                    margin-right: 1px;
+                    border-bottom: 2px solid transparent;
+                    font-family: 'Segoe UI';
+                    font-size: 12px;
+                }
+                QTabBar::tab:hover {
+                    background-color: #e0e0e0;
+                    color: #333333;
+                }
+                QTabBar::tab:selected {
+                    background-color: white;
+                    color: #3498db;
+                    border-bottom: 2px solid #3498db;
+                    margin-bottom: 0;
+                }
+                QTabBar::close-button {
+                    image: url(icons/close.png);
+                    subcontrol-position: right;
+                    subcontrol-origin: padding;
+                    width: 14px;
+                    height: 14px;
+                    margin-left: 5px;
+                }
+                QTabBar::close-button:hover {
+                    background-color: #ff6b6b;
+                    border-radius: 3px;
+                }
+            """)
+
     def switch_to_light_theme(self):
         self.is_dark_theme = False
         self.updateGlobalTheme()
@@ -1034,6 +1001,257 @@ class CodeEditorWindow(QMainWindow):
         self.is_dark_theme = True
         self.updateGlobalTheme()
         self.statusBar().showMessage("已切换到深色主题")
+
+    def create_menus(self):
+        # 创建菜单栏
+        menubar = self.menuBar()
+        
+        # 文件菜单
+        file_menu = menubar.addMenu("文件")
+        
+        # 新建文件动作
+        new_action = QAction("新建", self)
+        new_action.setShortcut("Ctrl+N")
+        new_action.triggered.connect(self.new_file)
+        file_menu.addAction(new_action)
+        
+        # 打开文件动作
+        open_action = QAction("打开", self)
+        open_action.setShortcut("Ctrl+O")
+        open_action.triggered.connect(self.open_file)
+        file_menu.addAction(open_action)
+        
+        file_menu.addSeparator()
+        
+        # 保存文件动作
+        save_action = QAction("保存", self)
+        save_action.setShortcut("Ctrl+S")
+        save_action.triggered.connect(self.save_file)
+        file_menu.addAction(save_action)
+        
+        # 另存为动作
+        save_as_action = QAction("另存为", self)
+        save_as_action.setShortcut("Ctrl+Shift+S")
+        save_as_action.triggered.connect(self.save_file_as)
+        file_menu.addAction(save_as_action)
+        
+        file_menu.addSeparator()
+        
+        # 退出动作
+        exit_action = QAction("退出", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        # 编辑菜单
+        edit_menu = menubar.addMenu("编辑")
+        
+        # 剪切动作
+        cut_action = QAction("剪切", self)
+        cut_action.setShortcut("Ctrl+X")
+        cut_action.triggered.connect(self.cut)
+        edit_menu.addAction(cut_action)
+        
+        # 复制动作
+        copy_action = QAction("复制", self)
+        copy_action.setShortcut("Ctrl+C")
+        copy_action.triggered.connect(self.copy)
+        edit_menu.addAction(copy_action)
+        
+        # 粘贴动作
+        paste_action = QAction("粘贴", self)
+        paste_action.setShortcut("Ctrl+V")
+        paste_action.triggered.connect(self.paste)
+        edit_menu.addAction(paste_action)
+        
+        edit_menu.addSeparator()
+        
+        # 查找动作
+        find_action = QAction("查找", self)
+        find_action.setShortcut("Ctrl+F")
+        find_action.triggered.connect(self.find_text)
+        edit_menu.addAction(find_action)
+        
+        # 视图菜单
+        view_menu = menubar.addMenu("视图")
+        
+        # 字体设置动作
+        font_action = QAction("字体", self)
+        font_action.triggered.connect(self.change_font)
+        view_menu.addAction(font_action)
+        
+        view_menu.addSeparator()
+        
+        # 主题切换动作
+        light_theme_action = QAction("浅色主题", self)
+        light_theme_action.triggered.connect(self.switch_to_light_theme)
+        view_menu.addAction(light_theme_action)
+        
+        dark_theme_action = QAction("深色主题", self)
+        dark_theme_action.triggered.connect(self.switch_to_dark_theme)
+        view_menu.addAction(dark_theme_action)
+
+    def create_toolbar(self):
+        # 创建工具栏
+        toolbar = QToolBar("工具栏", self)
+        self.addToolBar(toolbar)
+        
+        # 添加新建文件按钮
+        new_btn = QAction("新建", self)
+        new_btn.triggered.connect(self.new_file)
+        toolbar.addAction(new_btn)
+        
+        # 添加打开文件按钮
+        open_btn = QAction("打开", self)
+        open_btn.triggered.connect(self.open_file)
+        toolbar.addAction(open_btn)
+        
+        # 添加保存文件按钮
+        save_btn = QAction("保存", self)
+        save_btn.triggered.connect(self.save_file)
+        toolbar.addAction(save_btn)
+        
+        toolbar.addSeparator()
+        
+        # 添加剪切按钮
+        cut_btn = QAction("剪切", self)
+        cut_btn.triggered.connect(self.cut)
+        toolbar.addAction(cut_btn)
+        
+        # 添加复制按钮
+        copy_btn = QAction("复制", self)
+        copy_btn.triggered.connect(self.copy)
+        toolbar.addAction(copy_btn)
+        
+        # 添加粘贴按钮
+        paste_btn = QAction("粘贴", self)
+        paste_btn.triggered.connect(self.paste)
+        toolbar.addAction(paste_btn)
+
+    def new_file(self):
+        # 检查当前是否显示起始页
+        current_widget = self.tab_widget.currentWidget()
+        if isinstance(current_widget, StartPage):
+            # 如果是起始页，移除它
+            self.tab_widget.removeTab(0)
+        
+        # 创建新的编辑器
+        editor = CodeEditor(self)
+        editor.updateTheme(self.is_dark_theme)
+        editor.setFont(self.current_font)
+        editor.textChanged.connect(self.on_text_changed)
+        
+        # 添加到标签页
+        index = self.tab_widget.addTab(editor, "未命名")
+        self.tab_widget.setCurrentIndex(index)
+        
+        # 添加标签页动画
+        self.animateTab(index)
+        
+        # 设置状态栏消息
+        self.statusBar().showMessage("已创建新文件")
+
+    def animateTab(self, index):
+        # 简单的标签页选中动画
+        tab_bar = self.tab_widget.tabBar()
+        if tab_bar and 0 <= index < tab_bar.count():
+            # 这里可以添加更复杂的动画效果
+            pass
+
+    def open_file(self):
+        # 打开文件对话框
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "打开文件", "", "所有文件 (*);;文本文件 (*.txt);;Python 文件 (*.py);;JavaScript 文件 (*.js);;HTML 文件 (*.html);;CSS 文件 (*.css)"
+        )
+        
+        if file_path:
+            try:
+                # 检查文件是否已经打开
+                for i in range(self.tab_widget.count()):
+                    widget = self.tab_widget.widget(i)
+                    if hasattr(widget, 'file_path') and widget.file_path == file_path:
+                        self.tab_widget.setCurrentIndex(i)
+                        return
+                
+                # 检查当前是否显示起始页
+                current_widget = self.tab_widget.currentWidget()
+                if isinstance(current_widget, StartPage):
+                    # 如果是起始页，移除它
+                    self.tab_widget.removeTab(0)
+                
+                # 创建新的编辑器
+                editor = CodeEditor(self)
+                editor.updateTheme(self.is_dark_theme)
+                editor.setFont(self.current_font)
+                editor.textChanged.connect(self.on_text_changed)
+                
+                # 读取文件内容
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    editor.setPlainText(f.read())
+                
+                # 设置文件路径
+                editor.file_path = file_path
+                
+                # 添加到标签页
+                index = self.tab_widget.addTab(editor, os.path.basename(file_path))
+                self.tab_widget.setCurrentIndex(index)
+                
+                # 添加标签页动画
+                self.animateTab(index)
+                
+                # 设置状态栏消息
+                self.statusBar().showMessage(f"已打开文件: {file_path}")
+                
+                # 更新起始页的最近文件列表
+                self.update_recent_files(file_path)
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"无法打开文件: {str(e)}")
+
+    def save_file(self):
+        editor = self.get_current_editor()
+        if editor and not isinstance(editor, StartPage):
+            if hasattr(editor, 'file_path') and editor.file_path:
+                try:
+                    with open(editor.file_path, 'w', encoding='utf-8') as f:
+                        f.write(editor.toPlainText())
+                    editor.document().setModified(False)
+                    index = self.tab_widget.indexOf(editor)
+                    self.tab_widget.setTabText(index, os.path.basename(editor.file_path))
+                    self.statusBar().showMessage(f"已保存文件: {editor.file_path}")
+                except Exception as e:
+                    QMessageBox.critical(self, "错误", f"无法保存文件: {str(e)}")
+            else:
+                self.save_file_as()
+
+    def save_file_as(self):
+        editor = self.get_current_editor()
+        if editor and not isinstance(editor, StartPage):
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "另存为", "", "所有文件 (*);;文本文件 (*.txt);;Python 文件 (*.py);;JavaScript 文件 (*.js);;HTML 文件 (*.html);;CSS 文件 (*.css)"
+            )
+            
+            if file_path:
+                try:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(editor.toPlainText())
+                    editor.file_path = file_path
+                    editor.document().setModified(False)
+                    index = self.tab_widget.indexOf(editor)
+                    self.tab_widget.setTabText(index, os.path.basename(file_path))
+                    self.statusBar().showMessage(f"已保存文件: {file_path}")
+                    
+                    # 更新起始页的最近文件列表
+                    self.update_recent_files(file_path)
+                except Exception as e:
+                    QMessageBox.critical(self, "错误", f"无法保存文件: {str(e)}")
+
+    def update_recent_files(self, file_path):
+        # 更新起始页的最近文件列表
+        for i in range(self.tab_widget.count()):
+            widget = self.tab_widget.widget(i)
+            if isinstance(widget, StartPage):
+                widget.add_recent_file(file_path)
+                break
 
 # 主函数
 def main():
