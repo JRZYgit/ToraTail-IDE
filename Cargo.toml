@@ -1,0 +1,8 @@
+[package]
+name = "toratail"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.26.2"
+egui_code_editor = "0.2.17"
