@@ -1,8 +1,11 @@
-use eframe::{run_native, App, CreationContext, NativeOptions};
-use eframe::egui;
+use eframe::{App, CreationContext, NativeOptions, egui, run_native};
 use egui::{Context, ScrollArea, SidePanel};
 use std::path::{Path, PathBuf};
 use std::fs;
+
+// Import necessary traits for font loading
+use eframe::epaint::FontFamily;
+use eframe::epaint::text::FontId;
 
 // Define a struct for file tabs
 struct Tab {
@@ -50,6 +53,21 @@ struct CodeEditorApp {
     wrap_lines: bool,
     show_file_explorer: bool,
     current_dir: PathBuf,
+    
+    // Font settings
+    font_family: String,
+    font_size: u16,
+    font_weight: u8, // 0-99 for normal to bold
+    show_font_settings: bool,
+    
+    // Save functionality improvements
+    show_save_dialog: bool,
+    show_save_error: bool,
+    save_error_message: String,
+    auto_save_enabled: bool,
+    last_auto_save_time: std::time::Instant,
+    auto_save_interval: u64, // in seconds
+    request_new_window: bool,
 }
 
 impl CodeEditorApp {
@@ -72,6 +90,21 @@ impl CodeEditorApp {
             wrap_lines: true,
             show_file_explorer: true, // Show file explorer by default
             current_dir,
+            
+            // Initialize font settings with default values
+            font_family: "Monospace".to_string(),
+            font_size: 14,
+            font_weight: 40, // Normal weight
+            show_font_settings: false,
+            
+            // Initialize save functionality fields
+            show_save_dialog: false,
+            show_save_error: false,
+            save_error_message: String::new(),
+            auto_save_enabled: true,
+            last_auto_save_time: std::time::Instant::now(),
+            auto_save_interval: 30, // 30 seconds auto-save interval
+            request_new_window: false,
         }
     }
     
@@ -126,25 +159,74 @@ impl CodeEditorApp {
     
     // Save current tab to file
     fn save_current_tab(&mut self) {
-        // Get content before borrowing file_path
-        let content = self.tabs[self.current_tab].content.clone();
+        let current_tab_index = self.current_tab;
+        let tab_has_file_path = self.tabs[current_tab_index].file_path.is_some();
         
-        if let Some(ref file_path) = self.tabs[self.current_tab].file_path {
-            if let Err(err) = fs::write(file_path, &content) {
-                // In a real app, you would show an error message here
-                eprintln!("Failed to save file: {}", err);
-            } else {
-                self.tabs[self.current_tab].is_dirty = false;
-            }
+        if tab_has_file_path {
+            let file_path = self.tabs[current_tab_index].file_path.clone().unwrap();
+            let content = self.tabs[current_tab_index].content.clone();
+            self.perform_save(&file_path, &content);
         } else {
-            // In a real app, you would show a save dialog here
-            // For now, we just simulate saving to a temp file
-            let file_path = PathBuf::from(&self.tabs[self.current_tab].title);
-            if let Err(err) = fs::write(&file_path, &content) {
-                eprintln!("Failed to save file: {}", err);
-            } else {
-                self.tabs[self.current_tab].file_path = Some(file_path);
+            // Show save dialog if no file path is set
+            self.show_save_dialog = true;
+        }
+    }
+    
+    // Perform the actual save operation
+    fn perform_save(&mut self, file_path: &Path, content: &str) {
+        // Create parent directories if they don't exist
+        if let Some(parent_dir) = file_path.parent() {
+            if !parent_dir.exists() {
+                if let Err(err) = fs::create_dir_all(parent_dir) {
+                    self.show_save_error = true;
+                    self.save_error_message = format!("无法创建目录: {}", err);
+                    return;
+                }
+            }
+        }
+        
+        // Write the file with improved error handling
+        match fs::write(file_path, content) {
+            Ok(_) => {
+                // Update tab status
                 self.tabs[self.current_tab].is_dirty = false;
+                
+                // Update the tab title if it was previously "Untitled"
+                if self.tabs[self.current_tab].title == "Untitled" {
+                    if let Some(file_name) = file_path.file_name() {
+                        self.tabs[self.current_tab].title = file_name.to_string_lossy().to_string();
+                    }
+                }
+                
+                // Update last auto-save time
+                self.last_auto_save_time = std::time::Instant::now();
+            },
+            Err(err) => {
+                self.show_save_error = true;
+                self.save_error_message = format!("保存文件失败: {}", err);
+            }
+        }
+    }
+    
+    // Auto-save functionality
+    fn auto_save(&mut self) {
+        if !self.auto_save_enabled {
+            return;
+        }
+        
+        // Check if enough time has passed since last auto-save
+        if self.last_auto_save_time.elapsed().as_secs() >= self.auto_save_interval {
+            // Only auto-save if the current tab is dirty and has a file path
+            let current_tab = &self.tabs[self.current_tab];
+            if current_tab.is_dirty && current_tab.file_path.is_some() {
+                if let Some(ref file_path) = current_tab.file_path {
+                    // Create a copy of necessary data to avoid borrowing issues
+                    let file_path_copy = file_path.clone();
+                    let content_copy = current_tab.content.clone();
+                    
+                    // Perform the save operation
+                    self.perform_save(&file_path_copy, &content_copy);
+                }
             }
         }
     }
@@ -180,6 +262,9 @@ impl CodeEditorApp {
 
 impl App for CodeEditorApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        // Auto-save check
+        self.auto_save();
+        
         // Create menu bar
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -189,7 +274,7 @@ impl App for CodeEditorApp {
                         ui.close_menu();
                     }
                     if ui.button("New Tab").clicked() {
-                        self.new_tab();
+                        self.request_new_window = true;
                         ui.close_menu();
                     }
                     if ui.button("Save").clicked() {
@@ -218,8 +303,14 @@ impl App for CodeEditorApp {
                     ui.checkbox(&mut self.show_indent_guides, "Show Indent Guides");
                     ui.checkbox(&mut self.wrap_lines, "Wrap Lines");
                 });
-                ui.menu_button("Settings", |_ui| {
-                    // Additional settings can be added here
+                ui.menu_button("Settings", |ui| {
+                    if ui.button("Font Settings").clicked() {
+                        self.show_font_settings = !self.show_font_settings;
+                        ui.close_menu();
+                    }
+                    ui.checkbox(&mut self.auto_save_enabled, "Enable Auto-save");
+                    ui.label("Auto-save Interval (seconds):");
+                    ui.add(egui::Slider::new(&mut self.auto_save_interval, 5..=300).text("Seconds"));
                 });
             });
         });
@@ -339,6 +430,147 @@ impl App for CodeEditorApp {
                 }
             });
         });
+        
+        // Font Settings Dialog
+        if self.show_font_settings {
+            egui::Window::new("Font Settings")
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.heading("Font Preferences");
+                    
+                    // Font Family Selection
+                    ui.label("Font Family:");
+                    egui::ComboBox::from_label("")
+                        .selected_text(&self.font_family)
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.font_family, "Monospace".to_string(), "Monospace");
+                            ui.selectable_value(&mut self.font_family, "Proportional".to_string(), "Proportional");
+                        });
+                    
+                    // Font Size Slider
+                    ui.label(format!("Font Size: {}", self.font_size));
+                    ui.add(egui::Slider::new(&mut self.font_size, 8..=32).text("Size"));
+                    
+                    // Font Weight Slider
+                    ui.label(format!("Font Weight: {}", self.font_weight));
+                    ui.add(egui::Slider::new(&mut self.font_weight, 1..=99).text("Weight"));
+                    
+                    // Apply button
+                    if ui.button("Apply").clicked() {
+                        // Apply font changes to the context
+                        let mut style = (*ctx.style()).clone();
+                        
+                        // Set the font family based on selection
+                        let family = if self.font_family == "Monospace" {
+                            FontFamily::Monospace
+                        } else {
+                            FontFamily::Proportional
+                        };
+                        
+                        // Update the font size
+                        let font_size = self.font_size as f32;
+                        
+                        // Update various text styles with new font settings
+                        style.text_styles = [
+                            (egui::TextStyle::Small, FontId::new(font_size - 2.0, family.clone())),
+                            (egui::TextStyle::Body, FontId::new(font_size, family.clone())),
+                            (egui::TextStyle::Button, FontId::new(font_size, family.clone())),
+                            (egui::TextStyle::Heading, FontId::new(font_size + 4.0, family.clone())),
+                            (egui::TextStyle::Monospace, FontId::new(font_size, FontFamily::Monospace)),
+                        ].into();
+                        
+                        // Apply the style changes
+                        ctx.set_style(style);
+                        
+                        // Request immediate repaint to see changes
+                        ctx.request_repaint();
+                    }
+                    
+                    // Close button
+                    if ui.button("Close").clicked() {
+                        self.show_font_settings = false;
+                    }
+                });
+        }
+        
+        // Save Dialog
+        if self.show_save_dialog {
+            let mut file_path = String::new();
+            let current_tab_index = self.current_tab;
+            let tab_title = self.tabs[current_tab_index].title.clone();
+            
+            // Pre-fill with current directory and tab title
+            let default_path = self.current_dir.join(&tab_title);
+            
+            egui::Window::new("Save As")
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.heading("Save File As");
+                    ui.label("Enter file path:");
+                    
+                    // File path input
+                    ui.add_sized(
+                        [400.0, 24.0],
+                        egui::TextEdit::singleline(&mut file_path)
+                            .hint_text(&*default_path.to_string_lossy())
+                    );
+                    
+                    ui.separator();
+                    
+                    ui.horizontal(|ui| {
+                        if ui.button("Save").clicked() {
+                            let path = if file_path.is_empty() {
+                                default_path.clone()
+                            } else {
+                                PathBuf::from(&file_path)
+                            };
+                            
+                            // Get content before modifying self
+                            let content = self.tabs[current_tab_index].content.clone();
+                            
+                            // Update the tab's file path
+                            self.tabs[current_tab_index].file_path = Some(path.clone());
+                            
+                            // Perform the save
+                            self.perform_save(&path, &content);
+                            
+                            // Close the dialog
+                            self.show_save_dialog = false;
+                        }
+                        
+                        if ui.button("Cancel").clicked() {
+                            self.show_save_dialog = false;
+                        }
+                    });
+                });
+        }
+        
+        // Save Error Dialog
+        if self.show_save_error {
+            egui::Window::new("Save Error")
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.heading("Error Saving File");
+                    ui.label(&self.save_error_message);
+                    ui.separator();
+                    
+                    if ui.button("OK").clicked() {
+                        self.show_save_error = false;
+                    }
+                });
+        }
+        
+        // Handle new window request
+        if self.request_new_window {
+            // Start a new instance of the application
+            if let Err(_e) = std::process::Command::new(std::env::current_exe().unwrap_or_else(|_| "toratail.exe".into()))
+                .spawn() {
+                // If we can't start a new process, just create a new tab as fallback
+                self.new_tab();
+            }
+            // Reset the flag regardless of whether we could start a new process
+            self.request_new_window = false;
+        }
     }
 }
 
