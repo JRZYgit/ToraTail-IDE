@@ -263,6 +263,13 @@ struct CodeEditorApp {
     show_tora_output: bool,
     tora_output: String,
     tora_toolchain_path: PathBuf,
+    
+    // Git functionality
+    show_git_clone_dialog: bool,
+    git_repo_url: String,
+    git_clone_path: PathBuf,
+    git_output: String,
+    show_git_output: bool,
 }
 
 impl CodeEditorApp {
@@ -304,7 +311,7 @@ impl CodeEditorApp {
             
             // Initialize welcome page state
             show_welcome_page: true,
-            selected_directory: current_dir,
+            selected_directory: current_dir.clone(),
             
             // Initialize about dialog states
             show_about_dialog: false,
@@ -313,7 +320,14 @@ impl CodeEditorApp {
             // Initialize Tora language support
             show_tora_output: false,
             tora_output: String::new(),
-            tora_toolchain_path: PathBuf::from("../toratail/.ttc/")
+            tora_toolchain_path: PathBuf::from("../toratail/.ttc/"),
+            
+            // Initialize Git functionality
+            show_git_clone_dialog: false,
+            git_repo_url: String::new(),
+            git_clone_path: current_dir,
+            git_output: String::new(),
+            show_git_output: false,
         }
     }
     
@@ -450,9 +464,6 @@ impl CodeEditorApp {
         // Clear previous output
         self.tora_output.clear();
         
-        // Get current tab content
-        let content = self.tabs[self.current_tab].content.clone();
-        
         // Check if .ttc directory exists
         if !self.tora_toolchain_path.exists() {
             self.tora_output = format!("Error: Tora ToolChain not found at {}", self.tora_toolchain_path.display());
@@ -463,6 +474,9 @@ impl CodeEditorApp {
         // Create a temporary file to hold the Tora code
         let temp_dir = std::env::temp_dir();
         let temp_file = temp_dir.join("temp.tora");
+        
+        // Get content from current tab
+        let content = self.tabs[self.current_tab].content.clone();
         
         // Write code to temporary file
         if let Err(err) = fs::write(&temp_file, content) {
@@ -586,6 +600,16 @@ impl CodeEditorApp {
                                 self.show_welcome_page = false;
                             }
                             
+                            ui.add_space(15.0);
+                            
+                            if ui.add_sized(
+                                egui::Vec2::new(200.0, 40.0),
+                                egui::Button::new("Clone Git Repository")
+                            ).clicked() {
+                                // Show Git clone dialog
+                                self.show_git_clone_dialog = true;
+                            }
+                            
                             ui.add_space(30.0);
                         });
                     });
@@ -640,6 +664,95 @@ impl CodeEditorApp {
             });
         }
         files
+    }
+    
+    // Git clone repository
+    fn git_clone_repo(&mut self) {
+        // Clear previous output
+        self.git_output.clear();
+        
+        // Check if repo URL is provided
+        if self.git_repo_url.is_empty() {
+            self.git_output = "Error: Repository URL cannot be empty".to_string();
+            self.show_git_output = true;
+            return;
+        }
+        
+        // Check if clone path exists
+        if !self.git_clone_path.exists() {
+            // Try to create the directory if it doesn't exist
+            if let Err(err) = fs::create_dir_all(&self.git_clone_path) {
+                self.git_output = format!("Error creating directory: {}", err);
+                self.show_git_output = true;
+                return;
+            }
+        }
+        
+        // Get repository name from URL to create target directory
+        let repo_name = self.get_repo_name(&self.git_repo_url);
+        let target_path = self.git_clone_path.join(&repo_name);
+        
+        // Check if target directory already exists
+        if target_path.exists() {
+            self.git_output = format!("Error: Target directory '{}' already exists", target_path.display());
+            self.show_git_output = true;
+            return;
+        }
+        
+        // Run git clone command
+        let result = std::process::Command::new("git")
+            .args(["clone", &self.git_repo_url, &target_path.to_string_lossy()])
+            .output();
+        
+        // Process the result
+        match result {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                
+                if !stdout.is_empty() {
+                    self.git_output.push_str(&stdout);
+                }
+                if !stderr.is_empty() {
+                    if !self.git_output.is_empty() {
+                        self.git_output.push_str("\n\n");
+                    }
+                    self.git_output.push_str(&stderr);
+                }
+                
+                if output.status.success() {
+                    // If successful, open the cloned repository in the file explorer
+                    self.current_dir = target_path;
+                    self.show_welcome_page = false;
+                    self.show_file_explorer = true;
+                }
+            },
+            Err(err) => {
+                self.git_output = format!("Error running git command: {}. Make sure Git is installed.", err);
+            }
+        }
+        
+        // Show the output window
+        self.show_git_output = true;
+        // Close the clone dialog
+        self.show_git_clone_dialog = false;
+    }
+    
+    // Helper method to extract repository name from URL
+    fn get_repo_name(&self, url: &str) -> String {
+        // Handle different Git URL formats
+        let path = if url.ends_with(".git") {
+            &url[..url.len() - 4]
+        } else {
+            url
+        };
+        
+        // Extract the last part of the URL
+        if let Some(last_slash) = path.rfind('/') {
+            path[last_slash + 1..].to_string()
+        } else {
+            "cloned_repo".to_string()
+        }
     }
 }
 
@@ -1171,6 +1284,100 @@ impl App for CodeEditorApp {
             }
             // Reset the flag regardless of whether we could start a new process
             self.request_new_window = false;
+        }
+        
+        // Git Clone Dialog
+        if self.show_git_clone_dialog {
+            egui::Window::new("Clone Git Repository")
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.heading("Clone Git Repository");
+                    ui.add_space(10.0);
+                    
+                    // Repository URL input
+                    ui.label("Repository URL:");
+                    ui.add_sized(
+                        [400.0, 24.0],
+                        egui::TextEdit::singleline(&mut self.git_repo_url)
+                            .hint_text("https://github.com/username/repository.git")
+                    );
+                    
+                    ui.add_space(10.0);
+                    
+                    // Clone path input
+                    ui.label("Destination Path:");
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [350.0, 24.0],
+                            egui::TextEdit::singleline(&mut self.git_clone_path.to_string_lossy())
+                                .hint_text("Path where to clone the repository")
+                        );
+                        
+                        if ui.button("Browse...").clicked() {
+                            if let Some(directory) = FileDialog::new().pick_folder() {
+                                self.git_clone_path = directory;
+                            }
+                        }
+                    });
+                    
+                    ui.add_space(20.0);
+                    ui.separator();
+                    ui.add_space(10.0);
+                    
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            if ui.button("Clone").clicked() {
+                                self.git_clone_repo();
+                            }
+                            
+                            // Add elastic space to push cancel button to the right
+                            ui.add_space(ui.available_width() - 150.0);
+                            
+                            if ui.button("Cancel").clicked() {
+                                self.show_git_clone_dialog = false;
+                            }
+                        });
+                    });
+                });
+        }
+        
+        // Git Output Window
+        if self.show_git_output {
+            egui::Window::new("Git Output")
+                .resizable(true)
+                .default_size([600.0, 400.0])
+                .show(ctx, |ui| {
+                    ui.heading("Git Clone Output");
+                    ui.separator();
+                    
+                    // Make text area for output with limited height
+                    let mut output_text = self.git_output.clone();
+                    // Set a maximum height for the text area to ensure buttons are always visible
+                    let max_height = 300.0;
+                    let available_size = ui.available_size();
+                    let text_area_size = [
+                        available_size.x,
+                        available_size.y.min(max_height)
+                    ];
+                    ui.add_sized(
+                            text_area_size,
+                            egui::TextEdit::multiline(&mut output_text)
+                                .code_editor()
+                                .desired_rows(10)
+                                .desired_width(f32::INFINITY)
+                                .interactive(false)
+                        );
+                    
+                    ui.separator();
+                    
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Close").clicked() {
+                                self.show_git_output = false;
+                            }
+                        });
+                    });
+                });
         }
         
         // Plugin Installation Dialog
