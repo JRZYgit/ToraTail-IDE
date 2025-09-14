@@ -1,0 +1,67 @@
+// Tora字符串库使用示例
+
+// 基本字符串操作
+let text = "Hello, Tora Programming Language!";
+let length = strlen(text);
+
+println("文本: " + text);
+println("长度: " + length);
+
+// 字符串连接
+let part1 = "Hello";
+let part2 = "World";
+let combined = strcat(part1, " " + part2);
+
+println("连接结果: " + combined);
+
+// 字符串比较
+let str1 = "apple";
+let str2 = "banana";
+let comparison = strcmp(str1, str2);
+
+if comparison < 0 {
+    println("'" + str1 + "' 在字典序中小于 '" + str2 + "'");
+} else if comparison > 0 {
+    println("'" + str1 + "' 在字典序中大于 '" + str2 + "'");
+} else {
+    println("'" + str1 + "' 等于 '" + str2 + "'");
+}
+
+// 查找子字符串
+let sentence = "The quick brown fox jumps over the lazy dog";
+let word = "fox";
+let position = strpos(sentence, word);
+
+if position >= 0 {
+    println("在句子中找到 '" + word + "'，位置: " + position);
+} else {
+    println("在句子中未找到 '" + word + "'");
+}
+
+// 字符串处理
+let mixed_case = "HeLLo WoRLd";
+let upper = strtoupper(mixed_case);
+let lower = strtolower(mixed_case);
+
+println("原文: " + mixed_case);
+println("大写: " + upper);
+println("小写: " + lower);
+
+// 字符串分割
+let csv_data = "apple,banana,orange,grape";
+let fruits = split(csv_data, ",");
+
+println("CSV数据: " + csv_data);
+println("分割结果:");
+let i = 0;
+while i < len(fruits) {
+    println("  " + fruits[i]);
+    i = i + 1;
+}
+
+// 去除空白字符
+let spaced_text = "  Hello, Tora!  ";
+let trimmed = trim(spaced_text);
+
+println("原文: '" + spaced_text + "'");
+println("去除空白后: '" + trimmed + "'");

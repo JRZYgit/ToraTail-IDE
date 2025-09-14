@@ -1,0 +1,51 @@
+// Tora数学库使用示例
+
+// 使用三角函数
+let angle = PI / 4;  // 45度
+let sine = sin(angle);
+let cosine = cos(angle);
+let tangent = tan(angle);
+
+println("sin(45°) = " + sine);
+println("cos(45°) = " + cosine);
+println("tan(45°) = " + tangent);
+
+// 使用对数函数
+let number = 100;
+let natural_log = log(number);
+let log10_value = log10(number);
+
+println("ln(" + number + ") = " + natural_log);
+println("log10(" + number + ") = " + log10_value);
+
+// 使用取整函数
+let value = 3.7;
+let ceiling = ceil(value);
+let flooring = floor(value);
+let rounded = round(value);
+
+println("ceil(" + value + ") = " + ceiling);
+println("floor(" + value + ") = " + flooring);
+println("round(" + value + ") = " + rounded);
+
+// 使用统计函数
+let data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+let sum_value = sum(data);
+let average_value = average(data);
+let max_value = max_list(data);
+let min_value = min_list(data);
+
+println("数据: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]");
+println("总和: " + sum_value);
+println("平均值: " + average_value);
+println("最大值: " + max_value);
+println("最小值: " + min_value);
+
+// 使用随机数函数
+println("随机数示例:");
+let i = 0;
+while i < 5 {
+    let rand_val = randint(1, 100);
+    println("随机整数: " + rand_val);
+    i = i + 1;
+}

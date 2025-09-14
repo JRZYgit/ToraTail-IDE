@@ -1,0 +1,135 @@
+// Tora完整示例程序
+// 展示多种特性和标准库函数的使用
+
+// 计算圆的面积和周长
+fn circle_area(radius: f64) -> f64 {
+    return PI * radius * radius;
+}
+
+fn circle_circumference(radius: f64) -> f64 {
+    return 2 * PI * radius;
+}
+
+// 生成随机数据
+fn generate_random_data(count: i32) -> List {
+    let data = [];
+    let i = 0;
+    while i < count {
+        let value = randint(1, 100);
+        push(data, value);
+        i = i + 1;
+    }
+    return data;
+}
+
+// 计算列表的统计信息
+fn calculate_statistics(numbers: List) -> List {
+    let stats = [];
+    push(stats, sum(numbers));        // 总和
+    push(stats, average(numbers));    // 平均值
+    push(stats, max_list(numbers));   // 最大值
+    push(stats, min_list(numbers));   // 最小值
+    return stats;
+}
+
+// 主函数
+fn main() {
+    println("=== Tora语言完整示例 ===");
+    
+    // 1. 数学计算
+    let radius = 5.0;
+    let area = circle_area(radius);
+    let circumference = circle_circumference(radius);
+    
+    println("圆的计算:");
+    println("  半径: " + radius);
+    println("  面积: " + area);
+    println("  周长: " + circumference);
+    
+    // 2. 随机数生成
+    println("\n随机数生成:");
+    let random_numbers = generate_random_data(10);
+    let i = 0;
+    while i < len(random_numbers) {
+        println("  随机数 " + (i + 1) + ": " + random_numbers[i]);
+        i = i + 1;
+    }
+    
+    // 3. 统计计算
+    println("\n统计信息:");
+    let statistics = calculate_statistics(random_numbers);
+    println("  总和: " + statistics[0]);
+    println("  平均值: " + statistics[1]);
+    println("  最大值: " + statistics[2]);
+    println("  最小值: " + statistics[3]);
+    
+    // 4. 字符串处理
+    println("\n字符串处理:");
+    let message = "Hello, Tora!";
+    let message_length = strlen(message);
+    let upper_message = strtoupper(message);
+    let lower_message = strtolower(message);
+    
+    println("  原文: " + message);
+    println("  长度: " + message_length);
+    println("  大写: " + upper_message);
+    println("  小写: " + lower_message);
+    
+    // 5. 类型检查
+    println("\n类型检查:");
+    let test_values = [42, 3.14, "Hello", true, [1, 2, 3]];
+    let j = 0;
+    while j < len(test_values) {
+        let value = test_values[j];
+        print("  值: " + value + " (");
+        if is_int(value) {
+            print("整数");
+        } else if is_float(value) {
+            print("浮点数");
+        } else if is_str(value) {
+            print("字符串");
+        } else if is_bool(value) {
+            print("布尔值");
+        } else if is_list(value) {
+            print("列表");
+        } else {
+            print("未知类型");
+        }
+        println(")");
+        j = j + 1;
+    }
+    
+    // 6. 时间函数
+    println("\n时间信息:");
+    let current_time = time();
+    let current_timestamp = timestamp();
+    println("  当前时间: " + current_time);
+    println("  时间戳: " + current_timestamp);
+    
+    // 7. 列表操作
+    println("\n列表操作:");
+    let fruits = ["apple", "banana", "orange"];
+    println("  原始列表: " + fruits);
+    println("  列表长度: " + len(fruits));
+    
+    // 添加元素
+    push(fruits, "grape");
+    println("  添加grape后: " + fruits);
+    
+    // 检查元素是否存在
+    if contains(fruits, "banana") {
+        println("  列表包含banana");
+    } else {
+        println("  列表不包含banana");
+    }
+    
+    // 移除元素
+    let removed = pop(fruits);
+    println("  移除的元素: " + removed);
+    println("  移除后列表: " + fruits);
+    
+    println("\n=== 示例结束 ===");
+}
+
+// 执行主函数
+main();

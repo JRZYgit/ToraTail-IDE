@@ -1,0 +1,96 @@
+// Tora新功能示例程序
+// 展示Tora语言的最新特性和标准库函数
+
+fn main() {
+    println("=== Tora新功能示例 ===");
+    
+    // 1. 列表字面量
+    println("\n1. 列表字面量:");
+    let numbers = [1, 2, 3, 4, 5];
+    let mixed_list = [1, "hello", 3.14, true];
+    println("  数字列表: " + numbers);
+    println("  混合列表: " + mixed_list);
+    
+    // 2. 列表统计函数
+    println("\n2. 列表统计函数:");
+    let data = [10, 20, 30, 40, 50];
+    let total = sum(data);
+    let avg = average(data);
+    let max_val = max_list(data);
+    let min_val = min_list(data);
+    println("  数据: " + data);
+    println("  总和: " + total);
+    println("  平均值: " + avg);
+    println("  最大值: " + max_val);
+    println("  最小值: " + min_val);
+    
+    // 3. 赋值语句
+    println("\n3. 赋值语句:");
+    let counter = 0;
+    println("  初始计数器: " + counter);
+    counter = counter + 1;
+    println("  增加后计数器: " + counter);
+    counter = counter * 2;
+    println("  乘以2后计数器: " + counter);
+    
+    // 4. while循环（可选括号）
+    println("\n4. while循环:");
+    let i = 0;
+    while i < 3 {
+        println("  循环次数: " + (i + 1));
+        i = i + 1;
+    }
+    
+    // 5. 数学常量和函数
+    println("\n5. 数学常量和函数:");
+    println("  PI = " + PI);
+    println("  E = " + E);
+    let angle = PI / 4;
+    println("  sin(45°) = " + sin(angle));
+    println("  cos(45°) = " + cos(angle));
+    println("  tan(45°) = " + tan(angle));
+    
+    // 6. 随机数函数
+    println("\n6. 随机数函数:");
+    let random_float = random();
+    let random_int = randint(1, 100);
+    println("  随机浮点数 (0-1): " + random_float);
+    println("  随机整数 (1-100): " + random_int);
+    
+    // 7. 类型检查函数
+    println("\n7. 类型检查函数:");
+    let int_val = 42;
+    let float_val = 3.14;
+    let str_val = "Hello";
+    let bool_val = TRUE;
+    let list_val = [1, 2, 3];
+    
+    print("  值: " + int_val + " (");
+    if (is_int(int_val)) {
+        print("整数");
+    } else {
+        print("非整数");
+    }
+    println(")");
+    
+    print("  值: " + float_val + " (");
+    if (is_float(float_val)) {
+        print("浮点数");
+    } else {
+        print("非浮点数");
+    }
+    println(")");
+    
+    print("  值: " + str_val + " (");
+    if (is_str(str_val)) {
+        print("字符串");
+    } else {
+        print("非字符串");
+    }
+    println(")");
+    
+    println("\n=== 示例结束 ===");
+}
+
+// 执行主函数
+main();

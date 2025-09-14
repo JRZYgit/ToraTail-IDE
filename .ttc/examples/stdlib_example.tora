@@ -1,0 +1,59 @@
+// Tora标准库使用示例
+
+// 使用数学函数
+let radius = 5.0;
+let area = PI * radius * radius;
+println("Circle area with radius " + radius + " is: " + area);
+
+let number = -10;
+let absolute = abs(number);
+println("Absolute value of " + number + " is: " + absolute);
+
+let a = 15;
+let b = 25;
+let maximum = max(a, b);
+let minimum = min(a, b);
+println("Max of " + a + " and " + b + " is: " + maximum);
+println("Min of " + a + " and " + b + " is: " + minimum);
+
+// 使用字符串函数
+let message = "Hello, Tora!";
+let length = len(message);
+println("Length of '" + message + "' is: " + length);
+
+// 使用列表函数
+let numbers = [1, 2, 3, 4, 5];
+let list_length = len(numbers);
+println("Length of list is: " + list_length);
+
+push(numbers, 6);
+println("After pushing 6, list length is: " + len(numbers));
+
+let popped = pop(numbers);
+println("Popped value: " + popped);
+println("After popping, list length is: " + len(numbers));
+
+// 检查元素是否存在
+if contains(numbers, 3) {
+    println("List contains 3");
+} else {
+    println("List does not contain 3");
+}
+
+// 使用类型检查函数
+let value = 42;
+if is_int(value) {
+    println(value + " is an integer");
+}
+
+let text = "Hello";
+if is_str(text) {
+    println("'" + text + "' is a string");
+}
+
+// 使用随机数函数
+let random_value = random();
+println("Random value: " + random_value);
+
+let random_int = randint(1, 10);
+println("Random integer between 1 and 10: " + random_int);
