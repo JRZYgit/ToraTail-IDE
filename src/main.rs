@@ -1,11 +1,121 @@
 use eframe::{App, CreationContext, NativeOptions, egui, run_native};
-use egui::{Context, ScrollArea, SidePanel};
+use egui::{Context, ScrollArea, SidePanel, Color32};
 use std::path::{Path, PathBuf};
 use std::fs;
+use std::sync::Arc;
+
+// 导入plugins模块
+mod plugins;
 
 // Import necessary traits for font loading
 use eframe::epaint::FontFamily;
 use eframe::epaint::text::FontId;
+
+// Define plugin interface
+trait Plugin {
+    fn name(&self) -> &str;
+    fn version(&self) -> &str;
+    fn description(&self) -> &str;
+    
+    // Line highlighting hook
+    fn highlight_line(&self, _ui: &mut egui::Ui, _content: &str) {}
+    
+    // Get custom theme (optional)
+    fn get_theme(&self) -> Option<CustomTheme> { None }
+    
+    // Theme customization hook
+    fn customize_theme(&self, _theme: &mut egui::Style) {}
+}
+
+// Define custom theme struct
+struct CustomTheme {
+    text_color: Color32,
+    background_color: Color32,
+}
+
+// Sample plugin implementation
+struct HighlightKeywordPlugin {
+    keywords: Vec<String>,
+    highlight_color: Color32,
+}
+
+impl HighlightKeywordPlugin {
+    fn new() -> Self {
+        Self {
+            keywords: vec!["fn".to_string(), "let".to_string(), "if".to_string(), "else".to_string(), "return".to_string()],
+            highlight_color: Color32::from_rgb(255, 165, 0), // Orange color
+        }
+    }
+}
+
+impl Plugin for HighlightKeywordPlugin {
+    fn name(&self) -> &str { "Keyword Highlighter" }
+    fn version(&self) -> &str { "1.0.0" }
+    fn description(&self) -> &str { "Highlights programming keywords in code" }
+    
+    // Custom implementation of line highlighting
+    fn highlight_line(&self, _ui: &mut egui::Ui, content: &str) {
+        // Simple keyword highlighting logic
+        for line in content.lines() {
+            for keyword in &self.keywords {
+                if line.contains(&format!(" {}", keyword)) || line.starts_with(&format!("{}", keyword)) {
+                    // In a real implementation, we would use egui's painting API to draw highlights
+                    // This is a simplified placeholder
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// Define plugin manager
+struct PluginManager {
+    plugins: Vec<Arc<dyn Plugin + Send + Sync>>,
+    show_install_dialog: bool,
+    plugin_path: String,
+}
+
+impl PluginManager {
+    fn new() -> Self {
+        let mut plugins: Vec<Arc<dyn Plugin + Send + Sync>> = Vec::new();
+        
+        // Add built-in sample plugin
+        plugins.push(Arc::new(HighlightKeywordPlugin::new()));
+        
+        // Add example rich plugin (showcase all plugin capabilities)
+        plugins.push(Arc::new(plugins::example_plugin::ExamplePlugin::new()));
+        
+        Self {
+            plugins,
+            show_install_dialog: false,
+            plugin_path: String::new(),
+        }
+    }
+    
+    // Install plugin from disk
+    fn install_plugin(&mut self, path: &Path) {
+        // In a real implementation, we would load a dynamic library
+        // For this example, we'll just simulate plugin installation
+        println!("Attempting to install plugin from: {}", path.display());
+        
+        // For demonstration purposes, we'll treat any .rs file as a potential plugin
+        if path.extension().map_or(false, |ext| ext == "rs") {
+            // In a real implementation, we would validate and load the plugin
+            // For now, we'll just print a message
+            println!("Plugin installation simulation successful");
+        }
+    }
+    
+    // Get active theme from plugins (first one that provides a theme)
+    fn get_active_theme(&self) -> Option<CustomTheme> {
+        for plugin in &self.plugins {
+            if let Some(theme) = plugin.get_theme() {
+                return Some(theme);
+            }
+        }
+        None
+    }
+}
 
 // Define a struct for file tabs
 struct Tab {
@@ -68,6 +178,7 @@ struct CodeEditorApp {
     last_auto_save_time: std::time::Instant,
     auto_save_interval: u64, // in seconds
     request_new_window: bool,
+    plugin_manager: PluginManager,
 }
 
 impl CodeEditorApp {
@@ -105,6 +216,9 @@ impl CodeEditorApp {
             last_auto_save_time: std::time::Instant::now(),
             auto_save_interval: 30, // 30 seconds auto-save interval
             request_new_window: false,
+            
+            // Initialize plugin manager
+            plugin_manager: PluginManager::new(),
         }
     }
     
@@ -304,14 +418,35 @@ impl App for CodeEditorApp {
                     ui.checkbox(&mut self.wrap_lines, "Wrap Lines");
                 });
                 ui.menu_button("Settings", |ui| {
-                    if ui.button("Font Settings").clicked() {
-                        self.show_font_settings = !self.show_font_settings;
-                        ui.close_menu();
-                    }
-                    ui.checkbox(&mut self.auto_save_enabled, "Enable Auto-save");
-                    ui.label("Auto-save Interval (seconds):");
-                    ui.add(egui::Slider::new(&mut self.auto_save_interval, 5..=300).text("Seconds"));
-                });
+                        if ui.button("Font Settings").clicked() {
+                            self.show_font_settings = !self.show_font_settings;
+                            ui.close_menu();
+                        }
+                        ui.checkbox(&mut self.auto_save_enabled, "Enable Auto-save");
+                        ui.label("Auto-save Interval (seconds):");
+                        ui.add(egui::Slider::new(&mut self.auto_save_interval, 5..=300).text("Seconds"));
+                    });
+                    
+                    // Plugin menu
+                    ui.menu_button("Plugin", |ui| {
+                        // List installed plugins
+                        ui.label("Installed Plugins:");
+                        ui.separator();
+                        
+                        for plugin in &self.plugin_manager.plugins {
+                            ui.label(format!("- {} v{}", plugin.name(), plugin.version()));
+                            let mut label = egui::Label::new(plugin.description());
+                            ui.add_enabled(false, label);
+                        }
+                        
+                        ui.separator();
+                        
+                        // Install plugin option
+                        if ui.button("Install from Disk").clicked() {
+                            self.plugin_manager.show_install_dialog = true;
+                            ui.close_menu();
+                        }
+                    });
             });
         });
         
@@ -408,25 +543,36 @@ impl App for CodeEditorApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             // Show code editor
             ScrollArea::vertical().show(ui, |ui| {
+                // First, make a copy of the content to avoid borrowing issues
+                let content_copy = self.tabs[self.current_tab].content.clone();
+                let mut new_content = content_copy.clone();
+                
                 // Create text edit with code editor mode
-                // Note: In this version of egui, line numbers require a custom implementation
-                // and word wrapping is handled differently
-                let text_edit = egui::TextEdit::multiline(self.current_tab_content())
+                let mut text_edit = egui::TextEdit::multiline(&mut new_content)
                     .code_editor()
                     .desired_rows(10)
                     .desired_width(f32::INFINITY);
                 
-                // Apply text wrapping settings if available
-                // In egui 0.26.x, word wrapping is often controlled by the layout or context
+                // Apply custom theme from plugins if available
+                if let Some(custom_theme) = self.plugin_manager.get_active_theme() {
+                    text_edit = text_edit.text_color(custom_theme.text_color);
+                }
                 
+                // Add the text edit widget
                 ui.add_sized(
                     ui.available_size(),
                     text_edit
                 );
                 
-                // Mark the tab as dirty if content has changed
-                if !self.tabs[self.current_tab].is_dirty {
+                // Check if the content has changed
+                if content_copy != new_content {
+                    self.tabs[self.current_tab].content = new_content;
                     self.tabs[self.current_tab].is_dirty = true;
+                }
+                
+                // Apply line highlighting from plugins
+                for plugin in &self.plugin_manager.plugins {
+                    plugin.highlight_line(ui, &content_copy);
                 }
             });
         });
@@ -570,6 +716,50 @@ impl App for CodeEditorApp {
             }
             // Reset the flag regardless of whether we could start a new process
             self.request_new_window = false;
+        }
+        
+        // Plugin Installation Dialog
+        if self.plugin_manager.show_install_dialog {
+            let mut selected_file = String::new();
+            
+            egui::Window::new("Install Plugin")
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.heading("Install Plugin from Disk");
+                    ui.label("Select a plugin file (.rs or .dll):");
+                    
+                    // File path input
+                    ui.add_sized(
+                        [400.0, 24.0],
+                        egui::TextEdit::singleline(&mut selected_file)
+                            .hint_text("Path to plugin file")
+                    );
+                    
+                    ui.separator();
+                    
+                    ui.horizontal(|ui| {
+                        if ui.button("Browse...").clicked() {
+                            // In a real application, we would open a file dialog here
+                            // This is a simplified implementation
+                            ui.close_menu();
+                        }
+                    });
+                    
+                    ui.separator();
+                    
+                    ui.horizontal(|ui| {
+                        if ui.button("Install").clicked() {
+                            if !selected_file.is_empty() {
+                                self.plugin_manager.install_plugin(&PathBuf::from(&selected_file));
+                            }
+                            self.plugin_manager.show_install_dialog = false;
+                        }
+                        
+                        if ui.button("Cancel").clicked() {
+                            self.plugin_manager.show_install_dialog = false;
+                        }
+                    });
+                });
         }
     }
 }
