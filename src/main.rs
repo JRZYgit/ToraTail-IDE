@@ -39,17 +39,30 @@ struct HighlightKeywordPlugin {
     highlight_color: Color32,
 }
 
+// Demo plugin for installation demonstration
+struct DemoPlugin {
+    name: String,
+}
+
+impl DemoPlugin {
+    fn new(name: String) -> Self {
+        Self {
+            name,
+        }
+    }
+}
+
 impl HighlightKeywordPlugin {
     fn new() -> Self {
         Self {
             keywords: vec!["fn".to_string(), "let".to_string(), "if".to_string(), "else".to_string(), "return".to_string()],
             highlight_color: Color32::from_rgb(255, 165, 0), // Orange color
-        }
+          }
     }
 }
 
 impl Plugin for HighlightKeywordPlugin {
-    fn name(&self) -> &str { "Keyword Highlighter" }
+    fn name(&self) -> &str { "Keyword Highlighter [bundle]" }
     fn version(&self) -> &str { "1.0.0" }
     fn description(&self) -> &str { "Highlights programming keywords in code" }
     
@@ -68,11 +81,23 @@ impl Plugin for HighlightKeywordPlugin {
     }
 }
 
+// Implement Plugin trait for DemoPlugin
+impl Plugin for DemoPlugin {
+    fn name(&self) -> &str { &self.name }
+    fn version(&self) -> &str { "1.0.0" }
+    fn description(&self) -> &str { "A demonstration plugin installed from disk" }
+    
+    // Default implementations for other methods
+}
+
 // Define plugin manager
 struct PluginManager {
     plugins: Vec<Arc<dyn Plugin + Send + Sync>>,
+    plugin_enabled: Vec<bool>, // 存储每个插件的启用状态
     show_install_dialog: bool,
+    show_uninstall_confirm: bool, // 控制是否显示卸载确认对话框
     plugin_path: String,
+    plugin_to_uninstall: Option<usize>, // 存储要卸载的插件索引
 }
 
 impl PluginManager {
@@ -85,35 +110,79 @@ impl PluginManager {
         // Add example rich plugin (showcase all plugin capabilities)
         plugins.push(Arc::new(plugins::example_plugin::ExamplePlugin::new()));
         
+        // 初始化所有插件为启用状态
+        let plugin_enabled = vec![true; plugins.len()];
+        
         Self {
             plugins,
+            plugin_enabled,
             show_install_dialog: false,
+            show_uninstall_confirm: false,
             plugin_path: String::new(),
+            plugin_to_uninstall: None,
         }
     }
     
     // Install plugin from disk
     fn install_plugin(&mut self, path: &Path) {
         // In a real implementation, we would load a dynamic library
-        // For this example, we'll just simulate plugin installation
+        // For this example, we'll create a simple plugin as a demonstration
         println!("Attempting to install plugin from: {}", path.display());
         
         // For demonstration purposes, we'll treat any .rs file as a potential plugin
         if path.extension().map_or(false, |ext| ext == "rs") {
-            // In a real implementation, we would validate and load the plugin
-            // For now, we'll just print a message
-            println!("Plugin installation simulation successful");
+            // Create a simple demo plugin
+            let demo_plugin = Arc::new(DemoPlugin::new(path.file_name().unwrap().to_string_lossy().into()));
+            self.plugins.push(demo_plugin);
+            self.plugin_enabled.push(true);
+            println!("Plugin installation successful: Demo Plugin installed");
         }
     }
     
-    // Get active theme from plugins (first one that provides a theme)
+    // Get active theme from plugins (first enabled one that provides a theme)
     fn get_active_theme(&self) -> Option<CustomTheme> {
-        for plugin in &self.plugins {
-            if let Some(theme) = plugin.get_theme() {
-                return Some(theme);
+        for (i, plugin) in self.plugins.iter().enumerate() {
+            if self.plugin_enabled[i] { // 只检查启用的插件
+                if let Some(theme) = plugin.get_theme() {
+                    return Some(theme);
+                }
             }
         }
         None
+    }
+    
+    // 获取插件的启用状态
+    fn is_plugin_enabled(&self, index: usize) -> Option<bool> {
+        if index < self.plugin_enabled.len() {
+            Some(self.plugin_enabled[index])
+        } else {
+            None
+        }
+    }
+    
+    // 设置插件的启用状态
+    fn set_plugin_enabled(&mut self, index: usize, enabled: bool) {
+        if index < self.plugin_enabled.len() {
+            self.plugin_enabled[index] = enabled;
+        }
+    }
+    
+    // 获取所有插件的名称和启用状态
+    fn get_plugin_statuses(&self) -> Vec<(&str, &bool)> {
+        self.plugins.iter()
+            .zip(self.plugin_enabled.iter())
+            .map(|(plugin, enabled)| (plugin.name(), enabled))
+            .collect()
+    }
+    
+    // 卸载指定索引的插件
+    fn uninstall_plugin(&mut self, index: usize) {
+        if index < self.plugins.len() {
+            println!("Uninstalling plugin: {}", self.plugins[index].name());
+            // 从向量中移除插件
+            self.plugins.remove(index);
+            self.plugin_enabled.remove(index);
+        }
     }
 }
 
@@ -179,6 +248,7 @@ struct CodeEditorApp {
     auto_save_interval: u64, // in seconds
     request_new_window: bool,
     plugin_manager: PluginManager,
+    show_plugin_manager: bool,
 }
 
 impl CodeEditorApp {
@@ -219,6 +289,7 @@ impl CodeEditorApp {
             
             // Initialize plugin manager
             plugin_manager: PluginManager::new(),
+            show_plugin_manager: false,
         }
     }
     
@@ -429,17 +500,11 @@ impl App for CodeEditorApp {
                     
                     // Plugin menu
                     ui.menu_button("Plugin", |ui| {
-                        // List installed plugins
-                        ui.label("Installed Plugins:");
-                        ui.separator();
-                        
-                        for plugin in &self.plugin_manager.plugins {
-                            ui.label(format!("- {} v{}", plugin.name(), plugin.version()));
-                            let mut label = egui::Label::new(plugin.description());
-                            ui.add_enabled(false, label);
+                        // 打开插件管理器窗口
+                        if ui.button("Manage Plugins").clicked() {
+                            self.show_plugin_manager = true;
+                            ui.close_menu();
                         }
-                        
-                        ui.separator();
                         
                         // Install plugin option
                         if ui.button("Install from Disk").clicked() {
@@ -449,6 +514,85 @@ impl App for CodeEditorApp {
                     });
             });
         });
+        
+        // Plugin Manager Window
+        if self.show_plugin_manager {
+            egui::Window::new("Plugin Manager")
+                .resizable(true)
+                .default_size([450.0, 500.0])
+                .show(ctx, |ui| {
+                    // 标题
+                    ui.heading("Installed Plugins");
+                    ui.separator();
+                    
+                    // 创建临时向量记录状态变更和要卸载的插件索引
+                    let mut plugin_changes = Vec::new();
+                    let mut plugins_to_uninstall: Vec<usize> = Vec::new();
+                    
+                    // 使用ScrollArea确保内容不会溢出
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        let plugin_count = self.plugin_manager.plugins.len();
+                        
+                        if plugin_count == 0 {
+                            ui.label("No plugins installed.");
+                        } else {
+                            for i in 0..plugin_count {
+                                let plugin = &self.plugin_manager.plugins[i];
+                                let enabled = self.plugin_manager.plugin_enabled[i];
+                                let mut temp_enabled = enabled;
+                                
+                                // 插件名称和版本（可勾选启用/禁用）
+                                if ui.checkbox(&mut temp_enabled, format!("{} v{}", plugin.name(), plugin.version())).changed() {
+                                    plugin_changes.push((i, temp_enabled));
+                                }
+                                
+                                // 显示插件描述
+                                let label = egui::Label::new(plugin.description());
+                                ui.add_enabled(false, label);
+                                
+                                // 添加卸载按钮
+                                ui.horizontal(|ui| {
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        // 确保内置插件不能被卸载
+                                        let can_uninstall = i >= 1; // 假设前两个是内置插件
+                                        if ui.add_enabled(can_uninstall, egui::Button::new("Uninstall")).clicked() {
+                                            // 不直接卸载，而是显示确认对话框
+                                            self.plugin_manager.show_uninstall_confirm = true;
+                                            self.plugin_manager.plugin_to_uninstall = Some(i);
+                                            ui.ctx().request_repaint();
+                                        }
+                                    });
+                                });
+                                
+                                ui.separator();
+                            }
+                        }
+                    });
+                    
+                    // 应用所有插件状态的变更
+                    for (i, enabled) in plugin_changes {
+                        self.plugin_manager.set_plugin_enabled(i, enabled);
+                    }
+                    
+                    // 移除了旧的卸载逻辑，现在使用确认对话框
+                    
+                    // 底部按钮
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            if ui.button("Install from Disk").clicked() {
+                                self.plugin_manager.show_install_dialog = true;
+                            }
+                            
+                            // 添加弹性空间来分隔按钮
+                            ui.add_space(ui.available_width() - 240.0); // 确保有足够空间
+                            
+                            if ui.button("Close").clicked() {
+                                self.show_plugin_manager = false;
+                            }
+                        });
+                    });
+                });
+        }
         
         // File Explorer Side Panel
         if self.show_file_explorer {
@@ -570,9 +714,11 @@ impl App for CodeEditorApp {
                     self.tabs[self.current_tab].is_dirty = true;
                 }
                 
-                // Apply line highlighting from plugins
-                for plugin in &self.plugin_manager.plugins {
-                    plugin.highlight_line(ui, &content_copy);
+                // Apply line highlighting from enabled plugins
+                for (i, plugin) in self.plugin_manager.plugins.iter().enumerate() {
+                    if self.plugin_manager.plugin_enabled[i] {
+                        plugin.highlight_line(ui, &content_copy);
+                    }
                 }
             });
         });
@@ -720,7 +866,6 @@ impl App for CodeEditorApp {
         
         // Plugin Installation Dialog
         if self.plugin_manager.show_install_dialog {
-            let mut selected_file = String::new();
             
             egui::Window::new("Install Plugin")
                 .resizable(false)
@@ -728,10 +873,10 @@ impl App for CodeEditorApp {
                     ui.heading("Install Plugin from Disk");
                     ui.label("Select a plugin file (.rs or .dll):");
                     
-                    // File path input
+                    // File path input using PluginManager's plugin_path field
                     ui.add_sized(
                         [400.0, 24.0],
-                        egui::TextEdit::singleline(&mut selected_file)
+                        egui::TextEdit::singleline(&mut self.plugin_manager.plugin_path)
                             .hint_text("Path to plugin file")
                     );
                     
@@ -749,17 +894,56 @@ impl App for CodeEditorApp {
                     
                     ui.horizontal(|ui| {
                         if ui.button("Install").clicked() {
-                            if !selected_file.is_empty() {
-                                self.plugin_manager.install_plugin(&PathBuf::from(&selected_file));
+                            if !self.plugin_manager.plugin_path.is_empty() {
+                                self.plugin_manager.install_plugin(&PathBuf::from(&self.plugin_manager.plugin_path));
+                                // Clear the path after installation
+                                self.plugin_manager.plugin_path.clear();
                             }
                             self.plugin_manager.show_install_dialog = false;
                         }
                         
                         if ui.button("Cancel").clicked() {
+                            // Clear the path on cancel
+                            self.plugin_manager.plugin_path.clear();
                             self.plugin_manager.show_install_dialog = false;
                         }
                     });
                 });
+        }
+        
+        // Plugin Uninstall Confirmation Dialog
+        if self.plugin_manager.show_uninstall_confirm {
+            if let Some(index) = self.plugin_manager.plugin_to_uninstall {
+                if index < self.plugin_manager.plugins.len() {
+                    let plugin_name = self.plugin_manager.plugins[index].name().to_string();
+                    
+                    egui::Window::new("Confirm Uninstall")
+                        .resizable(false)
+                        .show(ctx, |ui| {
+                            ui.heading("Confirm Plugin Uninstall");
+                            ui.label(format!("Are you sure you want to uninstall '{}'?", plugin_name));
+                            ui.label("This action cannot be undone.");
+                            
+                            ui.separator();
+                            
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = ui.available_width() - 120.0;
+                                
+                                if ui.button("Uninstall").clicked() {
+                                    self.plugin_manager.uninstall_plugin(index);
+                                    self.plugin_manager.show_uninstall_confirm = false;
+                                    self.plugin_manager.plugin_to_uninstall = None;
+                                    ui.ctx().request_repaint();
+                                }
+                                
+                                if ui.button("Cancel").clicked() {
+                                    self.plugin_manager.show_uninstall_confirm = false;
+                                    self.plugin_manager.plugin_to_uninstall = None;
+                                }
+                            });
+                        });
+                }
+            }
         }
     }
 }
