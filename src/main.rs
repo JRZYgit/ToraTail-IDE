@@ -198,7 +198,7 @@ struct Tab {
 impl Tab {
     fn new_untitled() -> Self {
         Self {
-            title: "Untitled".to_string(),
+            title: "Untitled.txt".to_string(),
             content: String::new(),
             file_path: None,
             is_dirty: false,
@@ -258,6 +258,11 @@ struct CodeEditorApp {
     // About dialog states
     show_about_dialog: bool,
     show_update_dialog: bool,
+    
+    // Tora language support
+    show_tora_output: bool,
+    tora_output: String,
+    tora_toolchain_path: PathBuf,
 }
 
 impl CodeEditorApp {
@@ -304,6 +309,11 @@ impl CodeEditorApp {
             // Initialize about dialog states
             show_about_dialog: false,
             show_update_dialog: false,
+            
+            // Initialize Tora language support
+            show_tora_output: false,
+            tora_output: String::new(),
+            tora_toolchain_path: PathBuf::from("../toratail/.ttc/")
         }
     }
     
@@ -402,7 +412,7 @@ impl CodeEditorApp {
             },
             Err(err) => {
                 self.show_save_error = true;
-                self.save_error_message = format!("保存文件失败: {}", err);
+                self.save_error_message = format!("Failure to save file: {}", err);
             }
         }
     }
@@ -433,6 +443,68 @@ impl CodeEditorApp {
     // Toggle file explorer visibility
     fn toggle_file_explorer(&mut self) {
         self.show_file_explorer = !self.show_file_explorer;
+    }
+    
+    // Run Tora code
+    fn run_tora_code(&mut self) {
+        // Clear previous output
+        self.tora_output.clear();
+        
+        // Get current tab content
+        let content = self.tabs[self.current_tab].content.clone();
+        
+        // Check if .ttc directory exists
+        if !self.tora_toolchain_path.exists() {
+            self.tora_output = format!("Error: Tora ToolChain not found at {}", self.tora_toolchain_path.display());
+            self.show_tora_output = true;
+            return;
+        }
+        
+        // Create a temporary file to hold the Tora code
+        let temp_dir = std::env::temp_dir();
+        let temp_file = temp_dir.join("temp.tora");
+        
+        // Write code to temporary file
+        if let Err(err) = fs::write(&temp_file, content) {
+            self.tora_output = format!("Error writing to temporary file: {}", err);
+            self.show_tora_output = true;
+            return;
+        }
+        
+        // Run Tora interpreter using the toolchain
+        let main_py_path = self.tora_toolchain_path.join("src/main.py");
+        let result = std::process::Command::new("python")
+            .arg(main_py_path)
+            .arg(temp_file)
+            .output();
+        
+        // Process the result
+        match result {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                
+                if !stdout.is_empty() {
+                    self.tora_output.push_str(&stdout);
+                }
+                if !stderr.is_empty() {
+                    if !self.tora_output.is_empty() {
+                        self.tora_output.push_str("\n\n");
+                    }
+                    self.tora_output.push_str(&stderr);
+                }
+                
+                if self.tora_output.is_empty() {
+                    self.tora_output = "Program executed successfully with no output".to_string();
+                }
+            },
+            Err(err) => {
+                self.tora_output = format!("Error running Tora code: {}", err);
+            }
+        }
+        
+        // Show the output window
+        self.show_tora_output = true;
     }
     
     // Render welcome page
@@ -496,6 +568,7 @@ impl CodeEditorApp {
                                     .add_filter("Markdown files", &["md"])
                                     .add_filter("JavaScript files", &["js"])
                                     .add_filter("Python files", &["py"])
+                                    .add_filter("Tora files", &["tora"])
                                     .pick_file() {
                                     self.load_file(&file_path);
                                     self.show_welcome_page = false;
@@ -581,6 +654,11 @@ impl App for CodeEditorApp {
         // Auto-save check
         self.auto_save();
         
+        // Check for F5 key press to run Tora code
+        if ctx.input(|i| i.key_pressed(egui::Key::F5)) {
+            self.run_tora_code();
+        }
+        
         // Create menu bar
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -615,6 +693,16 @@ impl App for CodeEditorApp {
                     ui.button("Paste (Ctrl+V)").on_hover_text("Paste text");
                     ui.separator();
                     ui.button("Select All (Ctrl+A)").on_hover_text("Select all text");
+                });
+                
+                // Tools menu
+                ui.menu_button("Tools", |ui| {
+                    ui.menu_button("Tora Tools", |ui| {
+                        if ui.button("Run Tora Code (F5)").clicked() {
+                            self.run_tora_code();
+                            ui.close_menu();
+                        }
+                    });
                 });
                 ui.menu_button("View", |ui| {
                     ui.checkbox(&mut self.show_file_explorer, "Show File Explorer");
@@ -805,7 +893,7 @@ impl App for CodeEditorApp {
                             if is_dir {
                                 self.current_dir = file;
                             } else if file.extension().map_or(false, |ext| {
-                                ext == "rs" || ext == "txt" || ext == "md" || ext == "js" || ext == "py"
+                                ext == "rs" || ext == "txt" || ext == "md" || ext == "js" || ext == "py" || ext == "tora"
                             }) {
                                 self.load_file(&file);
                             }
@@ -1027,6 +1115,49 @@ impl App for CodeEditorApp {
                     if ui.button("OK").clicked() {
                         self.show_save_error = false;
                     }
+                });
+        }
+        
+        // Tora Output Window
+        if self.show_tora_output {
+            egui::Window::new("Tora Output")
+                .resizable(true)
+                .default_size([600.0, 400.0])
+                .show(ctx, |ui| {
+                    ui.heading("Tora Program Output");
+                    ui.separator();
+                    
+                    // Make text area for output with limited height
+                    let mut output_text = self.tora_output.clone();
+                    // Set a maximum height for the text area to ensure buttons are always visible
+                    let max_height = 300.0; // Adjust this value as needed
+                    let available_size = ui.available_size();
+                    let text_area_size = [
+                        available_size.x,
+                        available_size.y.min(max_height)
+                    ];
+                    ui.add_sized(
+                            text_area_size,
+                            egui::TextEdit::multiline(&mut output_text)
+                                .code_editor()
+                                .desired_rows(10)
+                                .desired_width(f32::INFINITY)
+                                .interactive(false)
+                        );
+                    
+                    ui.separator();
+                    
+                    ui.horizontal(|ui| {
+                        if ui.button("Run Again").clicked() {
+                            self.run_tora_code();
+                        }
+                        
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Close").clicked() {
+                                self.show_tora_output = false;
+                            }
+                        });
+                    });
                 });
         }
         
