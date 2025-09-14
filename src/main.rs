@@ -3,6 +3,7 @@ use egui::{Context, ScrollArea, SidePanel, Color32};
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::sync::Arc;
+use rfd::FileDialog;
 
 // 导入plugins模块
 mod plugins;
@@ -249,15 +250,20 @@ struct CodeEditorApp {
     request_new_window: bool,
     plugin_manager: PluginManager,
     show_plugin_manager: bool,
+    
+    // Welcome page state
+    show_welcome_page: bool,
+    selected_directory: PathBuf,
+    
+    // About dialog states
+    show_about_dialog: bool,
+    show_update_dialog: bool,
 }
 
 impl CodeEditorApp {
     fn new(_cc: &CreationContext<'_>) -> Self {
         // Create initial tab with sample code
-        let tabs = vec![Tab::new_with_content(
-            "main.rs".to_string(),
-            "fn main() {\n    println!(\"Hello, world!\");\n}\n".to_string()
-        )];
+        let tabs = vec![Tab::new_untitled()];
         
         // Get current directory
         let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -270,7 +276,7 @@ impl CodeEditorApp {
             show_indent_guides: true,
             wrap_lines: true,
             show_file_explorer: true, // Show file explorer by default
-            current_dir,
+            current_dir: current_dir.clone(),
             
             // Initialize font settings with default values
             font_family: "Monospace".to_string(),
@@ -290,6 +296,14 @@ impl CodeEditorApp {
             // Initialize plugin manager
             plugin_manager: PluginManager::new(),
             show_plugin_manager: false,
+            
+            // Initialize welcome page state
+            show_welcome_page: true,
+            selected_directory: current_dir,
+            
+            // Initialize about dialog states
+            show_about_dialog: false,
+            show_update_dialog: false,
         }
     }
     
@@ -421,6 +435,117 @@ impl CodeEditorApp {
         self.show_file_explorer = !self.show_file_explorer;
     }
     
+    // Render welcome page
+    fn render_welcome_page(&mut self, ctx: &Context) {
+        // Make sure the window is centered
+        egui::CentralPanel::default().show(ctx, |ui| {
+            // Calculate the center point
+            let center_x = ui.available_width() / 2.0;
+            let center_y = ui.available_height() / 2.0;
+            
+            // Create a vertical layout to center content
+            ui.vertical_centered(|ui| {
+                // Set a large font for the title
+                ui.heading("Welcome to Toratail IDE");
+                ui.add_space(20.0);
+                
+                // Main content area with a nice card layout
+                egui::Frame::default()
+                    .fill(ui.style().visuals.window_fill())
+                    .stroke(ui.style().visuals.widgets.active.fg_stroke)
+                    .rounding(8.0)
+                    .show(ui, |ui| {
+                        ui.set_min_size(egui::Vec2::new(500.0, 300.0));
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(30.0);
+                            
+                            // Title
+                            ui.label(egui::RichText::new("Toratail")
+                                .font(egui::FontId::new(40.0, egui::FontFamily::Monospace))
+                                .color(egui::Color32::from_rgb(100, 150, 255)));
+                            ui.add_space(20.0);
+                            
+                            ui.label("Select the operation to start");
+                            ui.add_space(30.0);
+                            
+                            // Action buttons
+                            if ui.add_sized(
+                                egui::Vec2::new(200.0, 40.0),
+                                egui::Button::new("Open folder")
+                            ).clicked() {
+                                // Open folder dialog
+                                if let Some(directory) = FileDialog::new().pick_folder() {
+                                    self.current_dir = directory.clone();
+                                    self.selected_directory = directory;
+                                    self.show_welcome_page = false;
+                                    self.show_file_explorer = true;
+                                }
+                            }
+                            
+                            ui.add_space(15.0);
+                            
+                            if ui.add_sized(
+                                egui::Vec2::new(200.0, 40.0),
+                                egui::Button::new("Open File")
+                            ).clicked() {
+                                // Open file dialog
+                                if let Some(file_path) = FileDialog::new()
+                                    .add_filter("All files", &["*"])
+                                    .add_filter("Text files", &["txt"])
+                                    .add_filter("Rust files", &["rs"])
+                                    .add_filter("Markdown files", &["md"])
+                                    .add_filter("JavaScript files", &["js"])
+                                    .add_filter("Python files", &["py"])
+                                    .pick_file() {
+                                    self.load_file(&file_path);
+                                    self.show_welcome_page = false;
+                                }
+                            }
+                            
+                            ui.add_space(15.0);
+                            
+                            if ui.add_sized(
+                                egui::Vec2::new(200.0, 40.0),
+                                egui::Button::new("New File")
+                            ).clicked() {
+                                // Create a new tab and close welcome page
+                                self.new_tab();
+                                self.show_welcome_page = false;
+                            }
+                            
+                            ui.add_space(30.0);
+                        });
+                    });
+                
+                ui.add_space(20.0);
+                
+                // Recent files section
+                ui.heading("Recent documents");
+                ui.add_space(10.0);
+                
+                // Show recent files (if any)
+                let recent_files: Vec<&str> = vec![]; // This would come from persistent storage in a real app
+                
+                if recent_files.is_empty() {
+                    ui.label("No recent documents");
+                } else {
+                    ui.columns(2, |columns| {
+                        for (i, file) in recent_files.iter().enumerate() {
+                            let col_index = i % 2;
+                            columns[col_index].horizontal(|ui| {
+                                if ui.button("📄").clicked() {
+                                    self.load_file(&std::path::Path::new(file));
+                                    self.show_welcome_page = false;
+                                }
+                                ui.label(*file);
+                            });
+                        }
+                    });
+                }
+            });
+        });
+    }
+    
     // List files in current directory
     fn list_files(&self) -> Vec<PathBuf> {
         let mut files = Vec::new();
@@ -447,6 +572,12 @@ impl CodeEditorApp {
 
 impl App for CodeEditorApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        // If showing welcome page, render it instead of main editor
+        if self.show_welcome_page {
+            self.render_welcome_page(ctx);
+            return;
+        }
+        
         // Auto-save check
         self.auto_save();
         
@@ -464,6 +595,10 @@ impl App for CodeEditorApp {
                     }
                     if ui.button("Save").clicked() {
                         self.save_current_tab();
+                        ui.close_menu();
+                    }
+                    if ui.button("Start page").clicked() {
+                        self.show_welcome_page = true;
                         ui.close_menu();
                     }
                     if ui.button("Exit").clicked() {
@@ -497,6 +632,49 @@ impl App for CodeEditorApp {
                         ui.label("Auto-save Interval (seconds):");
                         ui.add(egui::Slider::new(&mut self.auto_save_interval, 5..=300).text("Seconds"));
                     });
+                    
+                    // About menu
+                    ui.menu_button("About", |ui| {
+                        if ui.button("Version").clicked() {
+                            self.show_about_dialog = true;
+                            ui.close_menu();
+                        }
+                        if ui.button("Check update").clicked() {
+                            self.show_update_dialog = true;
+                            ui.close_menu();
+                        }
+                    });
+                    
+                    // About dialog rendering
+                    if self.show_about_dialog {
+                        egui::Window::new("About Toratail IDE")
+                            .resizable(false)
+                            .show(ctx, |ui| {
+                                ui.heading("Toratail IDE");
+                                ui.add_space(10.0);
+                                ui.label("Version: 1.0.0");
+                                ui.label("A lightweight code editor built with Rust and egui");
+                                ui.add_space(20.0);
+                                if ui.button("OK").clicked() {
+                                    self.show_about_dialog = false;
+                                }
+                            });
+                    }
+                    
+                    // Update check dialog rendering
+                    if self.show_update_dialog {
+                        egui::Window::new("Check for Updates")
+                            .resizable(false)
+                            .show(ctx, |ui| {
+                                ui.heading("Update Check");
+                                ui.add_space(10.0);
+                                ui.label("No updates available");
+                                ui.add_space(20.0);
+                                if ui.button("OK").clicked() {
+                                    self.show_update_dialog = false;
+                                }
+                            });
+                    }
                     
                     // Plugin menu
                     ui.menu_button("Plugin", |ui| {
@@ -657,7 +835,7 @@ impl App for CodeEditorApp {
                             }
                             
                             // Close button for tab
-                            let close_button = ui.button("✕");
+                            let close_button = ui.button("x");
                             if close_button.clicked() {
                                 tab_to_close = Some(i);
                             }
